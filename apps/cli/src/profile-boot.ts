@@ -331,6 +331,7 @@ export async function runProfile(options: RunProfileOptions): Promise<{ ctx: Con
       ...(options.packageManager === undefined ? {} : { packageManager: options.packageManager }),
       dir: composed.profile.dir, patchPath: composed.profile.patchPath,
       installAnchor: options.resolvedProfile?.installAnchor ?? INSTALL_ANCHOR,
+      ...(options.resolvedProfile?.runtimeAnchor === undefined ? {} : { runtimeAnchor: options.resolvedProfile.runtimeAnchor }),
       startedBundles: composed.profile.layers.map(layer => layer.packageName),
       cwd: process.cwd(), home: resolveDshHome(),
       overlayPaths: composed.overlayPaths, telemetryDisabledEnv: process.env.DSH_TELEMETRY_DISABLED,

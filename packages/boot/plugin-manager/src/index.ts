@@ -512,23 +512,29 @@ export class PluginManager extends TypertRemoteService {
 
   /** The bundle inventory before update eligibility, which is derived from each listed bundle. */
   private readBundles(): Omit<BundleInfo, 'update'>[] {
-    const { manifest, exemptions, installation } = readProfileState(() => ({
+    const { runtimeAnchor } = this.profile
+    const { manifest, exemptions, installation, runtimeDependencies } = readProfileState(() => ({
       manifest: readProfileManifest('dsh', this.profile.dir),
       exemptions: readProfileVersionExemptions(this.profile.dir),
       installation: JSON.parse(readFileSync(this.profile.installAnchor, 'utf8')) as InstallationManifest,
+      runtimeDependencies: runtimeAnchor === undefined ? {} :
+        (JSON.parse(readFileSync(runtimeAnchor, 'utf8')) as InstallationManifest).dependencies ?? {},
     }))
     const selected = bundleSelection(manifest)
     const recorded = manifest.dependencies ?? {}
     const dependencies = Object.keys(recorded)
     const catalog = new Map(OFFICIAL_ON_DEMAND_CATALOG.map(entry => [entry.packageName, entry]))
-    const names = [...new Set([...selected, ...dependencies, ...Object.keys(installation.dependencies ?? {}), ...catalog.keys()])]
+    const names = [...new Set([
+      ...selected, ...dependencies, ...Object.keys(installation.dependencies ?? {}), ...Object.keys(runtimeDependencies), ...catalog.keys(),
+    ])]
     const bundles: Omit<BundleInfo, 'update'>[] = []
     const runtimeVersion = getDshRuntimeVersion()
     for (const name of names) {
       const installed = dependencies.includes(name)
       const optional = OPTIONAL_BUNDLES.includes(name)
       const enabled = selected.includes(name)
-      const shipped = Object.hasOwn(installation.dependencies ?? {}, name)
+      const runtimeShipped = Object.hasOwn(runtimeDependencies, name)
+      const shipped = runtimeShipped || Object.hasOwn(installation.dependencies ?? {}, name)
       const offered = catalog.get(name)
       const official = optional || offered !== undefined
       let target: Pick<BundleInfo, 'installTarget'> = {}
@@ -568,7 +574,7 @@ export class PluginManager extends TypertRemoteService {
           continue
         }
         version = info.version
-        const listedByDefault = info.dsh?.bundle?.listedByDefault
+        const listedByDefault = info.dsh?.bundle?.listedByDefault ?? (runtimeShipped ? true : undefined)
         // The launcher ignores this display field, so an invalid value is a metadata diagnostic, not a load error.
         const listingDiagnostic = listedByDefault === undefined || typeof listedByDefault === 'boolean'
           ? undefined

@@ -54,6 +54,9 @@ async function fixture(config: Config = {}) {
     'guide/DETAIL.zh.md': '# 有说明\n',
     'guide/img/shot.svg': '<svg xmlns="http://www.w3.org/2000/svg"/>',
   })
+  const runtimeAnchor = join(home, 'desktop-host.json')
+  writeFileSync(runtimeAnchor, JSON.stringify({ dependencies: { 'desktop-bundle': '1.0.0' } }))
+  bundle('desktop-bundle', {})
   bundle('plain', { 'readme.md': '# Plain' })
   bundle('bare', {})
   bundle('broken', { 'locale/en.json': JSON.stringify({ meta: { detail: '../outside.md' } }) })
@@ -63,7 +66,7 @@ async function fixture(config: Config = {}) {
   writeFileSync(join(dir, 'cordis.yml'), '[]\n')
   const profile: ProfileContext = {
     name: 'test', startedBundles: loadProfileDirectory('test', dir, join(home, 'package.json')).layers.map(layer => layer.packageName),
-    dir, patchPath: join(dir, 'cordis.patch.yml'), installAnchor: join(home, 'package.json'), cwd: home, home, overlayPaths: [], telemetryDisabledEnv: undefined,
+    dir, patchPath: join(dir, 'cordis.patch.yml'), installAnchor: join(home, 'package.json'), runtimeAnchor, cwd: home, home, overlayPaths: [], telemetryDisabledEnv: undefined,
   }
   const ctx = await boot('test', join(dir, 'cordis.yml'), readProfilePatches('test', profile), (root) => {
     owner = root
@@ -79,6 +82,14 @@ async function fixture(config: Config = {}) {
 }
 
 const failureOf = async (promise: Promise<unknown>) => remoteErrorOf(await promise.catch((error: unknown) => error))
+
+it('reports a bundle shipped by the desktop host without a profile installation', async () => {
+  const { manager } = await fixture()
+  expect(await manager.listBundles()).toContainEqual(expect.objectContaining({
+    name: 'desktop-bundle', version: '1.0.0', availability: 'installation', installed: false,
+    enabled: false, listedByDefault: true, removable: false,
+  }))
+})
 
 it('reads an installed bundle\'s localized meta.detail file or README from its directory', async () => {
   const fetch = vi.fn(() => Promise.reject(new Error('no network')))
