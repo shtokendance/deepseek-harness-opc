@@ -26,7 +26,7 @@ const UPDATE_ENVIRONMENTS = {
   },
   production: {
     originEnvName: undefined,
-    fixedOrigin: 'https://download.deepseek.com',
+    fixedOrigin: 'https://aiwork.benlai.com',
     bucketEnvName: 'DOWNLOAD_PROD_COS_BUCKET',
     secretIdEnvName: 'DOWNLOAD_PROD_COS_SECRET_ID',
     secretKeyEnvName: 'DOWNLOAD_PROD_COS_SECRET_KEY',
@@ -43,16 +43,12 @@ const UPDATE_TARGETS = new Set(['mac-arm64', 'mac-x64', 'win-x64'])
 export function desktopLatestInstallerFilename(target) {
   if (!UPDATE_TARGETS.has(target)) throw new Error(`desktop upload: unsupported target ${target}`)
   const windows = target === 'win-x64'
-  return `dsh-latest-${windows ? 'windows' : 'macos'}-${target === 'mac-arm64' ? 'arm64' : 'x64'}.${windows ? 'exe' : 'dmg'}`
+  return `WorkOPC-latest-${windows ? 'windows' : 'macos'}-${target === 'mac-arm64' ? 'arm64' : 'x64'}.${windows ? 'exe' : 'dmg'}`
 }
 
-/**
- * Resolve the production website installer URL shared by approval, upload and purge.
- * @param {'mac-arm64' | 'mac-x64' | 'win-x64'} target Supported Desktop target.
- * @returns {string} Fixed production download URL.
- */
 export function desktopWebsiteInstallerUrl(target) {
-  return `${UPDATE_ENVIRONMENTS.production.fixedOrigin}/desktop/${desktopLatestInstallerFilename(target)}`
+  if (!UPDATE_TARGETS.has(target)) throw new Error(`desktop upload: unsupported target ${target}`)
+  return `${UPDATE_ENVIRONMENTS.production.fixedOrigin}/workopc/download/${target}`
 }
 
 /**
@@ -171,7 +167,7 @@ export function resolveDesktopAutoUpdateConfig(env, platform, arch) {
     if (originEnvName === undefined) throw new Error('desktop auto-update: selected deployment has no origin')
     origin = httpsOrigin(requiredEnvironmentValue(env, originEnvName), originEnvName)
   }
-  let releasePrefix = 'dsh-desk'
+  let releasePrefix = 'workopc/update'
   if (environment === 'test') {
     const releaseId = requiredEnvironmentValue(env, 'DOWNLOAD_TEST_RELEASE_ID')
     if (!/^[a-f0-9]{32}$/u.test(releaseId)) {
