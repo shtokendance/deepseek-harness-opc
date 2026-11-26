@@ -109,7 +109,7 @@ export function createElectronBuilderConfig(
   const packaged = resolveDesktopBuildCommit(env)
   return {
     appId,
-    protocols: [{ name: 'WorkOPC', schemes: ['dsh'] }],
+    protocols: [{ name: 'WorkOPC', schemes: ['workopc'] }],
     extraMetadata: {
       productName: 'WorkOPC',
       dshDesktopAppId: appId,
