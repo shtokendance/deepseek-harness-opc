@@ -4,6 +4,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { isAbsolute, join, relative, resolve } from 'node:path'
 import yaml from 'js-yaml'
 import { valid } from 'semver'
+import { OPC_DESKTOP_BUNDLE } from '../src/project-manager.ts'
 import { DESKTOP_RUNTIME_DEPENDENCY_OVERRIDES, DESKTOP_RUNTIME_PATCHES, type DesktopRuntimePatch } from './runtime-patch-policy.ts'
 
 /** Expected patch bytes and package version for one independent installation. */
@@ -50,6 +51,7 @@ export function prepareRuntimePatches(
   if (resolve(projectRoot) === resolve(repositoryRoot)) throw new Error('desktop patches: destination must not be the source workspace')
   const source = yaml.load(readFileSync(join(repositoryRoot, 'pnpm-workspace.yaml'), 'utf8')) as {
     patchedDependencies: Record<string, string>
+    minimumReleaseAgeExclude?: string[]
   }
   const sourceLock = yaml.load(readFileSync(join(repositoryRoot, 'pnpm-lock.yaml'), 'utf8')) as {
     patchedDependencies: Record<string, string>
@@ -85,8 +87,14 @@ export function prepareRuntimePatches(
   }
   mkdirSync(join(projectRoot, 'patches'), { recursive: true })
   for (const entry of selected) writeFileSync(join(projectRoot, entry.path), entry.bytes)
-  writeFileSync(targetPath, yaml.dump({ ...target, overrides: { ...target.overrides, ...overrides },
-    patchedDependencies: Object.fromEntries(selected.map(entry => [entry.spec, entry.path])), allowUnusedPatches: false }))
+  const minimumReleaseAgeExclude = source.minimumReleaseAgeExclude?.filter(spec => spec.startsWith(`${OPC_DESKTOP_BUNDLE}@`)) ?? []
+  writeFileSync(targetPath, yaml.dump({
+    ...target,
+    overrides: { ...target.overrides, ...overrides },
+    ...(minimumReleaseAgeExclude.length === 0 ? {} : { minimumReleaseAgeExclude }),
+    patchedDependencies: Object.fromEntries(selected.map(entry => [entry.spec, entry.path])),
+    allowUnusedPatches: false,
+  }))
   return { patches: selected.map(({ bytes: _bytes, ...entry }) => entry),
     workspaceOnly: Object.entries(policy).filter(([, rule]) => rule.scope === 'workspace-only').map(([spec]) => patchIdentity(spec).name) }
 }

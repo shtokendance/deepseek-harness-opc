@@ -9,7 +9,7 @@ import { promisify } from 'node:util'
 import { fileURLToPath } from 'node:url'
 import { readPrimaryRuntime, workspaceDependencyPaths } from '../../../packages/skill/tool-workspace-dependencies/src/index.ts'
 import { DesktopHostProcess } from '../src/host-process.ts'
-import { createPluginProfile } from '../src/project-manager.ts'
+import { createPluginProfile, OPC_DESKTOP_BUNDLE } from '../src/project-manager.ts'
 import type { DesktopRuntimeDescriptor } from '../src/runtime-tree.ts'
 
 const OFFICE_SKILLS = ['office']
@@ -105,6 +105,12 @@ export function apply(ctx) {
   if (!(ctx instanceof Context)) throw new Error('desktop runtime: external plugin loaded another Cordis instance')
   ctx.effect(() => ctx.webServer.register({ kind: 'exact', path: '/desktop-smoke',
     handler(_request, response) { response.end('plugin route ready') } }))
+  ctx.effect(() => ctx.webServer.register({ kind: 'exact', path: '/desktop-smoke-opc',
+    async handler(_request, response) {
+      const plugins = await ctx.pluginManager.listPlugins()
+      const opc = plugins.find(plugin => plugin.moduleName === ${JSON.stringify(OPC_DESKTOP_BUNDLE)})
+      response.end(JSON.stringify(opc ?? null))
+    } }))
   ctx.effect(() => ctx.webServer.register({ kind: 'exact', path: '/desktop-smoke-install',
     async handler(_request, response) {
       try {
@@ -192,6 +198,12 @@ export function apply(ctx) {
     }
     const pluginResponse = await fetch(new URL('/desktop-smoke', ready.url), { headers: { cookie } })
     if (await pluginResponse.text() !== 'plugin route ready') throw new Error('desktop runtime: plugin HTTP route failed')
+    const opcResponse = await fetch(new URL('/desktop-smoke-opc', ready.url), { headers: { cookie } })
+    const opc = await opcResponse.json() as { enabled: boolean; fiberPhase: string } | null
+    if (opc?.enabled !== true || opc.fiberPhase !== 'active') {
+      throw new Error(`desktop runtime: the default OPC bundle did not activate: ${JSON.stringify(opc)}`)
+    }
+    console.log('desktop runtime: bundled OPC plugin active in a fresh profile')
     const installation = await fetch(new URL('/desktop-smoke-install', ready.url), {
       headers: { cookie }, signal: AbortSignal.timeout(120_000),
     })

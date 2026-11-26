@@ -46,8 +46,10 @@ describe('desktop external plugin profile', () => {
   it('preserves installed packages, profile state, and the lockfile when preparing a launch', async () => {
     const { manager } = setup()
     await manager.applyRelease()
-    seedPlugin(manager)
     const profile = manager.paths.profile
+    const initialManifest = JSON.parse(readFileSync(join(profile, 'package.json'), 'utf8'))
+    expect(initialManifest.dsh.profile.bundles.at(-1)).toBe('dsh-plugin-opc')
+    seedPlugin(manager)
     const name = '@deepseek-ai/dsh-web-app'
     const path = join(profile, 'node_modules', name)
     mkdirSync(path, { recursive: true })
@@ -120,6 +122,7 @@ describe('desktop external plugin profile', () => {
       dsh: { profile: { bundles: string[] } }
     }
     expect(manifest.dependencies.plugin).toBe('1.0.0')
+    expect(manifest.dsh.profile.bundles).not.toContain('dsh-plugin-opc')
     expect(manifest.dsh.profile.bundles).not.toContain('plugin')
     expect(manifest.dsh.profile.bundles).toContain('@deepseek-ai/dsh-web-app')
     await manager.applyRelease()

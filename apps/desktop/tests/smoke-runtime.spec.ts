@@ -72,6 +72,7 @@ it('uses the private readiness Cookie for every packaged runtime HTTP probe', as
       const path = request.url
       if (path === '/') response.end('<html>packaged fixture</html>')
       else if (path === '/desktop-smoke') response.end('plugin route ready')
+      else if (path === '/desktop-smoke-opc') response.end(JSON.stringify({ enabled: true, fiberPhase: 'active' }))
       else if (path === '/desktop-smoke-install') response.end('{}')
       else if (path === '/desktop-smoke-installed') response.end('installed plugin ready')
       else if (path === '/desktop-smoke-skills') response.end(JSON.stringify(loadedSkills))
@@ -106,7 +107,7 @@ it('uses the private readiness Cookie for every packaged runtime HTTP probe', as
   vi.spyOn(console, 'log').mockImplementation(() => {})
   await smokeDesktopRuntime(join(root, 'payload'), process.execPath, runtime, {}, resources)
   expect(requests.map(request => request.path)).toEqual([
-    '/', '/desktop-smoke', '/desktop-smoke-install', '/desktop-smoke-installed', '/desktop-smoke-skills',
+    '/', '/desktop-smoke', '/desktop-smoke-opc', '/desktop-smoke-install', '/desktop-smoke-installed', '/desktop-smoke-skills',
     '/desktop-smoke-office/docx', '/desktop-smoke-office/xlsx', '/desktop-smoke-office/pptx',
     '/desktop-smoke-office-operations/docx', '/desktop-smoke-office-operations/xlsx', '/desktop-smoke-office-operations/pptx',
   ])

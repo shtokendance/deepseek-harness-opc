@@ -10,6 +10,8 @@ description: "Desktop 在原生应用中运行 Harness 工作区。本参考文�
 
 Desktop 在原生应用中运行 Harness 工作区。本参考文档说明应用行为、开发与集成；打包、Windows 签名和发布指南分别维护构建与发布操作。
 
+OPC fork 随 Desktop Host 内置 `dsh-plugin-opc`，新建 Desktop 配置时默认启用。首次启动即可加载插件，无需联网下载。已有配置保留原来保存的插件选择。
+
 ## 目录
 
 - [应用概览](#application-overview)

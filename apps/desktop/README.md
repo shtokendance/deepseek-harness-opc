@@ -10,6 +10,8 @@ English | [中文](README.zh.md)
 
 Desktop runs the Harness workspace in a native application. This reference covers application behavior, development and integration; the packaging, Windows signing and publication guides own build and release operations.
 
+The OPC fork ships `dsh-plugin-opc` with the Desktop Host and enables it when creating a Desktop profile. The plugin is available on first launch without downloading it. Existing profiles keep their saved bundle selection.
+
 ## Table of Contents
 
 - [Application overview](#application-overview)

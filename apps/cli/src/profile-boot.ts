@@ -227,7 +227,10 @@ async function composeProfile(
 ): Promise<ComposedProfile> {
   const profile = resolvedProfile?.profile ?? prepareProfile(name, true, fromDefaultProfile)
   if (resolvedProfile !== undefined) writeFileSync(join(profile.dir, PROFILE_ROOT_FILENAME), PROFILE_ROOT_CONFIG)
-  const resolutionOptions = { installAnchor: resolvedProfile?.installAnchor ?? INSTALL_ANCHOR, profile }
+  const resolutionOptions = {
+    installAnchor: resolvedProfile?.runtimeAnchor ?? resolvedProfile?.installAnchor ?? INSTALL_ANCHOR,
+    profile,
+  }
   const resolution = await createRuntimeResolution(resolutionOptions)
   return { profile, resolution, overlayPaths: patchFiles.map(file => resolve(file)) }
 }
@@ -238,6 +241,8 @@ export interface ResolvedProfileRuntime {
   profile: Profile
   /** Absolute package.json path of the application's dsh installation. */
   installAnchor: string
+  /** Manifest declaring runtime dependencies shipped by the application and its dsh installation. */
+  runtimeAnchor?: string
 }
 
 /** Options for {@link runProfile}. */
