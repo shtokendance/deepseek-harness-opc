@@ -11,7 +11,7 @@
     "lib/cli.js"
   ],
   "dependencies": {
-    "dsh-plugin-opc": "0.1.67",
+    "dsh-plugin-opc": "0.1.69",
     "koffi": "3.1.1",
     "@deepseek-ai/cordis": "workspace:~",
     "@deepseek-ai/dsh": "workspace:*",
