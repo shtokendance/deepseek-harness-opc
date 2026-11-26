@@ -9,20 +9,15 @@ import { RunningWhaleTail } from '../src/client/chat/RunningWhaleTail.tsx'
 afterEach(cleanup)
 
 describe('RunningWhaleTail', () => {
-  it('renders a decorative mask seat and static SVG without inline styles', () => {
+  it('renders a decorative spinning WorkOPC SVG without inline styles', () => {
     const view = render(<RunningWhaleTail />)
     const icon = view.container.firstElementChild!
     expect(icon.tagName).toBe('SPAN')
     expect(icon.getAttribute('aria-hidden')).toBe('true')
-    expect(icon.children).toHaveLength(2)
-    expect(icon.firstElementChild?.tagName).toBe('SPAN')
-    expect(icon.firstElementChild?.childElementCount).toBe(0)
     const svg = icon.querySelector('svg')!
-    expect(icon.lastElementChild).toBe(svg)
-    expect(svg.getAttribute('viewBox')).toBe('0 0 16 16')
+    expect(svg.getAttribute('viewBox')).toBe('0 0 24 24')
+    expect(svg.querySelectorAll('circle')).toHaveLength(2)
     expect(svg.querySelectorAll('path')).toHaveLength(1)
-    expect(svg.querySelector('path')?.getAttribute('d')).toMatch(/^M/)
-    expect(svg.querySelector('path')?.getAttribute('stroke')).toBe('currentColor')
     expect(view.container.querySelector('animate')).toBeNull()
     expect(view.container.querySelector('[style]')).toBeNull()
   })

@@ -674,7 +674,7 @@ function takeOwnerStateClaim(dir: string): OwnerHostClaim | undefined {
 }
 
 function defaultOwnerStateFile(): string {
-  const dshHome = nonEmpty(process.env.DSH_HOME) ?? join(homedir(), '.dsh')
+  const dshHome = nonEmpty(process.env.DSH_HOME) ?? join(homedir(), '.workopc')
   return join(dshHome, 'liveshare', 'owner-shares.json')
 }
 
