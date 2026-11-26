@@ -371,7 +371,7 @@ function RowsSection({ rows, t, resolveText, toggle, configure }: {
 
 /** Declared install source and versions; unavailable files retain their recorded dependency spec. */
 function SourceSection({ pkg, t }: { readonly pkg: PackageView; readonly t: Translate }): ReactNode {
-  if (pkg.source === undefined && !pkg.installed && pkg.availability === 'installation' && !pkg.optional) return null
+  if (pkg.source === undefined && !pkg.installed && pkg.availability === 'installation' && !pkg.optional && pkg.listedByDefault !== true) return null
   return (
     <section className={css.detailSection} data-plugin-source>
       <h4 className={css.sectionTitle}>{t('sourceTitle')}</h4>
@@ -1626,7 +1626,7 @@ export function PluginManagerPage(props: PluginManagerPageProps): ReactNode {
 
   const listed = state.packages.filter(pkg => !HIDDEN_BUNDLES.has(pkg.name)
     && (pkg.listedByDefault !== false || pkg.enabled || pkg.installed || rowsRunning(pkg))
-    && (pkg.installed || pkg.official || pkg.error !== undefined))
+    && (pkg.installed || pkg.official || pkg.error !== undefined || (pkg.availability === 'installation' && pkg.listedByDefault === true)))
   const mine = listed.filter(pkg => !pkg.official)
   const official = listed.filter(pkg => pkg.official)
   // Both lists read one order over the eligible bundles: the main list holds the always-held ones plus the held-back

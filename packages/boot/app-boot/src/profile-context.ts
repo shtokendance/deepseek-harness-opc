@@ -19,6 +19,7 @@ export interface ProfileContext {
   readonly dir: string
   readonly patchPath: string
   readonly installAnchor: string
+  readonly runtimeAnchor?: string
   readonly cwd: string
   readonly home: string
   /** Bundle packages used to start this process, before any persisted edits. */
