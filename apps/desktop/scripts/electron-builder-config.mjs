@@ -111,6 +111,7 @@ export function createElectronBuilderConfig(
     appId,
     protocols: [{ name: 'WorkOPC', schemes: ['dsh'] }],
     extraMetadata: {
+      productName: 'WorkOPC',
       dshDesktopAppId: appId,
       dshDesktopUpdateChannel: update?.channel ?? 'nightly',
       ...(policy === undefined ? {} : { dshMandatoryUpdatePolicy: policy }),
