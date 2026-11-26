@@ -312,28 +312,31 @@ export function apply(ctx: Context): void {
       }),
     }, AccountPlatformHost))
   }
-  ctx.remoteAccess.whenAccess('account/watch', () => ctx.slots.inject('settings.launcher', () => ctx.slots.register({
-    name: 'settings.launcher', locale: 'settings.account', inject: () => operations,
-  }, AccountMenu)))
-  ctx.remoteAccess.whenAccess('account/watch', () => ctx.slots.inject('settings.notice', () => ctx.slots.register({
-    name: 'settings.notice', inject: () => operations,
-    children: { 'settings.launcher.notifications': { kind: 'single', scope: 'root' } },
-  }, AccountNotices)))
-  ctx.remoteAccess.whenAccess('account/watch', () => ctx.slots.inject('settings.section', () => {
-    let unregister: (() => void) | undefined
-    const update = () => {
-      if (snapshot.view?.status === 'credential-stored') {
-        unregister ??= ctx.slots.register({
-          name: 'settings.section', id: 'account', order: -10, label: () => t('nav'),
-          locale: 'settings.account', inject: () => operations,
-        }, AccountSection)
-      } else {
-        unregister?.()
-        unregister = undefined
+  const workOpcOwnedLauncher = Boolean((globalThis as { __WORKOPC_OWNED_LAUNCHER__?: boolean }).__WORKOPC_OWNED_LAUNCHER__)
+  if (!workOpcOwnedLauncher) {
+    ctx.remoteAccess.whenAccess('account/watch', () => ctx.slots.inject('settings.launcher', () => ctx.slots.register({
+      name: 'settings.launcher', locale: 'settings.account', inject: () => operations,
+    }, AccountMenu)))
+    ctx.remoteAccess.whenAccess('account/watch', () => ctx.slots.inject('settings.notice', () => ctx.slots.register({
+      name: 'settings.notice', inject: () => operations,
+      children: { 'settings.launcher.notifications': { kind: 'single', scope: 'root' } },
+    }, AccountNotices)))
+    ctx.remoteAccess.whenAccess('account/watch', () => ctx.slots.inject('settings.section', () => {
+      let unregister: (() => void) | undefined
+      const update = () => {
+        if (snapshot.view?.status === 'credential-stored') {
+          unregister ??= ctx.slots.register({
+            name: 'settings.section', id: 'account', order: -10, label: () => t('nav'),
+            locale: 'settings.account', inject: () => operations,
+          }, AccountSection)
+        } else {
+          unregister?.()
+          unregister = undefined
+        }
       }
-    }
-    listeners.add(update)
-    update()
-    return () => { listeners.delete(update); unregister?.() }
-  }))
+      listeners.add(update)
+      update()
+      return () => { listeners.delete(update); unregister?.() }
+    }))
+  }
 }
