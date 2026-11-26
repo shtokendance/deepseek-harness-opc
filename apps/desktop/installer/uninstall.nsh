@@ -132,8 +132,7 @@ Function un.CleanData
   StrCpy $UnTarget "$APPDATA\${PRODUCT_FILENAME}"
   Call un.RemoveData
   !ifdef APP_PACKAGE_NAME
-    ; Electron derives user data from the package name; a scoped name nests it one directory deeper.
-    StrCpy $UnTarget "$APPDATA\${APP_PACKAGE_NAME}"
+    StrCpy $UnTarget "$APPDATA\${PRODUCT_NAME}"
     Call un.RemoveData
     System::Call '$PLUGINSDIR\window-frame.dll::UninstallRemoveEmptyParents(w "$UnTarget", w "$APPDATA") ?c'
   !endif
@@ -144,7 +143,7 @@ FunctionEnd
 ; Upgrade replacement retains integrations; KEEP_APP_DATA controls only user data.
 !define /ifndef DSH_COMMAND_ENVIRONMENT_KEY "Environment"
 !define /ifndef DSH_COMMAND_OWNER_KEY "Software\DeepSeekHarness\Command"
-!define /ifndef DSH_PROTOCOL_KEY "Software\Classes\dsh"
+!define /ifndef DSH_PROTOCOL_KEY "Software\Classes\workopc"
 !define /ifndef DSH_COMMAND_MUTEX "default"
 Function un.CleanRegistration
   ${If} ${isUpdated}
