@@ -128,7 +128,7 @@ export function launchAcpTestAgent(options: AcpTestLaunchOptions): LaunchedAcpTe
     ...agent.profile === undefined ? {} : { sourceImport: 'tsx/esm' },
     env: {
       ...options.env,
-      DSH_HOME: join(cwd, '.dsh'),
+      DSH_HOME: join(cwd, '.workopc'),
       DSH_AGENTS_HOME: join(cwd, '.agents'),
     },
   })
@@ -354,7 +354,7 @@ function profileArgs(
   const patches = snapshotMode === 'replay'
     ? [base, replayPatchPath(selected)]
     : [...new Set([base, selected])]
-  const materializedRoot = join(cwd, '.dsh-profile-patches')
+  const materializedRoot = join(cwd, '.workopc-profile-patches')
   mkdirSync(materializedRoot, { recursive: true })
   const materializedDir = mkdtempSync(join(materializedRoot, 'launch-'))
   const materialized = patches.map((file, index) => materializeProfilePatch(file, cwd, profile, materializedDir, index))
@@ -392,7 +392,7 @@ function linkProfilePackage(source: string, cwd: string, profile: string, packag
   const packageDir = packageDirFromPatch(source, packageName)
   // The package may instead belong to the dsh installation; profile boot heals those links.
   if (packageDir === undefined) return
-  const link = join(cwd, '.dsh', 'profiles', profile, 'node_modules', packageName)
+  const link = join(cwd, '.workopc', 'profiles', profile, 'node_modules', packageName)
   mkdirSync(dirname(link), { recursive: true })
   if (existsSync(link)) {
     if (realpathSync(link) !== packageDir) {
