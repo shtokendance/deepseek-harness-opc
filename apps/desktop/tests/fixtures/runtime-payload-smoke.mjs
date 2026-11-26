@@ -2,11 +2,11 @@
 
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
-import { delimiter, dirname, join, resolve } from 'node:path'
+import { basename, delimiter, dirname, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { checkPnpm } from './pnpm-smoke.mjs'
 
@@ -132,7 +132,35 @@ function checkHtml() {
   assert.match(markdown, /\| x\s+\| 7\s+\|/u)
 }
 
+function checkOpcApplicationWorker() {
+  const plugin = join('node_modules', 'dsh-plugin-opc')
+  if (!existsSync(join(root, plugin, 'package.json'))) return false
+
+  const archive = dirname(root)
+  const physicalRoot = basename(archive) === 'app.asar' ? join(`${archive}.unpacked`, basename(root)) : root
+  const worker = join(physicalRoot, plugin, 'runtime', 'worker.py')
+  const command = process.platform === 'win32' ? ['python.exe'] : ['bin', 'python3']
+  const python = join(resourcesRuntime, 'primary-runtime', 'dependencies', 'python', ...command)
+  const source = join(scratch, 'opc-source')
+  mkdirSync(source)
+  writeFileSync(join(source, 'package.json'), JSON.stringify({ name: 'opc-smoke', version: '1.0.0' }))
+  writeFileSync(join(source, 'index.js'), 'console.log("opc-smoke")\n')
+  const stdout = execFileSync(python, ['-I', '-B', '-X', 'utf8', worker], {
+    cwd: scratch, encoding: 'utf8', timeout: 45_000, windowsHide: true,
+    input: JSON.stringify({ action: 'prepare', root: join(scratch, 'opc-job'), source,
+      slug: 'opc-smoke', url: 'https://opc-smoke.invalid', live_directory: true }),
+  })
+  const result = JSON.parse(stdout)
+  assert.equal(result.ok, true, result.error)
+  assert.equal(result.value.imported, true)
+  assert.equal(result.value.file_count, 2)
+  return true
+}
+
+let opcApplicationWorker
 try {
+  console.error('runtime payload: OPC application worker')
+  opcApplicationWorker = checkOpcApplicationWorker()
   const builtin = requireRuntime('node-addon-require-builtin')
   assert.equal(typeof builtin.requireBuiltin('internal/modules/esm/loader').getOrInitializeCascadedLoader, 'function')
   console.error('runtime payload: pnpm')
@@ -156,5 +184,5 @@ try {
 // Natural event-loop drain includes node-pty's worker and console-list helper teardown.
 process.once('beforeExit', () => {
   console.log(JSON.stringify({ node: process.versions.node, platform: process.platform, arch: process.arch,
-    koffi: true, sharp: true, html: true, pty: true, pnpm: true, grep: true, glob: true }))
+    koffi: true, sharp: true, html: true, pty: true, pnpm: true, grep: true, glob: true, opcApplicationWorker }))
 })
