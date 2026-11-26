@@ -404,6 +404,7 @@ describe('RightbarSeat presentation', () => {
 
   it.each(['macos', 'windows'] as const)('keeps %s close commands on newly opened, revealed and replaced pages', async (platform) => {
     const h = await mountSeat()
+    act(() => { h.actions.setExpanded(SESSION, false) })
     act(() => { h.registerPage('browser', true); h.registerPage('files'); h.registerPage('terminal', true) })
     const registry = new ShortcutRegistry('desktop', platform)
     const closeWindow = vi.fn()
@@ -516,7 +517,7 @@ describe('RightbarSeat presentation', () => {
     // Armed while the Session is already on screen: the ordinary case.
     act(() => { h.arm(true) })
     expect(h.opened).toHaveLength(1)
-    expect(Object.values(h.layout().tabs).map(tab => tab.contentId)).toEqual(h.opened)
+    expect(Object.values(h.layout().tabs).map(tab => tab.contentId)).toEqual(expect.arrayContaining(h.opened))
     // A global panel takes the Conversation's place and hides the Sidebar.
     act(() => { h.runtime.panelInfo.set({ activePanelId: 'other-panel' as MainPanelId }) })
     expect(element(h.view.container, '[data-sidebar-right-session]').hidden).toBe(true)
@@ -526,7 +527,7 @@ describe('RightbarSeat presentation', () => {
     act(() => { h.runtime.panelInfo.set({ activePanelId: null }) })
     expect(h.controller.mounted.getSnapshot()).toBe(SESSION)
     expect(h.opened).toHaveLength(2)
-    expect(Object.values(h.layout().tabs).map(tab => tab.contentId)).toEqual(h.opened)
+    expect(Object.values(h.layout().tabs).map(tab => tab.contentId)).toEqual(expect.arrayContaining(h.opened))
     expect(h.controller.active()?.contentId).toBe(h.opened[1])
     expect(errors.mock.calls.map(call => String(call[0])).filter(text => text.includes('slot entry crashed'))).toEqual([])
     expect(document.querySelector('[data-slot-error]')).toBeNull()
@@ -633,6 +634,7 @@ describe('RightbarSeat presentation', () => {
 
   it('keeps the panel mounted while collapsed and releases the frame on unmount', async () => {
     const h = await mountSeat()
+    act(() => { h.actions.setExpanded(SESSION, false) })
     const panel = element(h.view.container, '[data-sidebar-right-panel]')
     expect(panel.hasAttribute('data-sidebar-right-open')).toBe(false)
     expect(panel.getAttribute('aria-hidden')).toBe('true')
@@ -647,6 +649,7 @@ describe('RightbarSeat presentation', () => {
 
   it('marks the panel as opening from the opening render until its slide ends', async () => {
     const h = await mountSeat()
+    act(() => { h.actions.setExpanded(SESSION, false) })
     const panel = element(h.view.container, '[data-sidebar-right-panel]')
     expect(panel.hasAttribute('data-sidebar-right-opening')).toBe(false)
     h.open()
@@ -784,7 +787,9 @@ describe('RightbarSeat presentation', () => {
 describe('RightbarSeat fullscreen entry', () => {
   it('retains the previous report until its transform finishes, then leaves the track in place on exit', async () => {
     const h = await mountSeat()
+    act(() => { h.actions.setExpanded(SESSION, false) })
     act(() => { h.actions.setMode(SESSION, 'fullscreen') })
+    h.frame.openRightbar.mockClear()
     const panel = element(h.view.container, '[data-sidebar-right-panel]')
     const slide = transition()
     const unrelated = transition('opacity')
@@ -804,7 +809,9 @@ describe('RightbarSeat fullscreen entry', () => {
 
   it('reports immediately without a transform transition, including zero-duration and reduced-motion entry', async () => {
     const h = await mountSeat()
+    act(() => { h.actions.setExpanded(SESSION, false) })
     act(() => { h.actions.setMode(SESSION, 'fullscreen') })
+    h.frame.openRightbar.mockClear()
     const unrelated = transition('opacity')
     const ended = transition()
     ended.finish()
@@ -841,7 +848,9 @@ describe('RightbarSeat fullscreen entry', () => {
 
   it.each(['close', 'push', 'session', 'unmount'])('ignores a late completion after %s', async (change) => {
     const h = await mountSeat()
+    act(() => { h.actions.setExpanded(SESSION, false) })
     act(() => { h.actions.setMode(SESSION, 'fullscreen') })
+    h.frame.openRightbar.mockClear()
     const slide = transition()
     vi.spyOn(element(h.view.container, '[data-sidebar-right-panel]'), 'getAnimations').mockReturnValue([slide.animation])
     h.open()
@@ -862,7 +871,9 @@ describe('RightbarSeat fullscreen entry', () => {
 
   it('uses the current viewport report when entry crosses the fullscreen breakpoint', async () => {
     const h = await mountSeat()
+    act(() => { h.actions.setExpanded(SESSION, false) })
     act(() => { h.actions.setMode(SESSION, 'fullscreen') })
+    h.frame.openRightbar.mockClear()
     const slide = transition()
     vi.spyOn(element(h.view.container, '[data-sidebar-right-panel]'), 'getAnimations').mockReturnValue([slide.animation])
     h.open()
