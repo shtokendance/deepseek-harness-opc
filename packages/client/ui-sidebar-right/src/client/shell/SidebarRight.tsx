@@ -411,8 +411,11 @@ export function RightbarSeat({
   const track = shown && !autoFullscreen
 
   useEffect(() => {
-    if (active && surface === undefined) actions.open(sessionId)
-  }, [actions, sessionId, surface, active])
+    if (active && surface === undefined) {
+      if (canShow && !autoFullscreen) actions.setExpanded(sessionId, true)
+      else actions.open(sessionId)
+    }
+  }, [actions, sessionId, surface, active, canShow, autoFullscreen])
 
   useLayoutEffect(() => {
     if (shown && !fullscreen && !canShow) actions.setExpanded(sessionId, false)
