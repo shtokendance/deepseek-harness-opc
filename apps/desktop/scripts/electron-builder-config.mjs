@@ -59,6 +59,10 @@ export function createElectronBuilderConfig(
     throw new Error('desktop package: DSH_DESKTOP_UNSIGNED must be 0 or 1')
   }
   const unsigned = env.DSH_DESKTOP_UNSIGNED === '1'
+  if (env.DSH_DESKTOP_WINDOWS_SKIP_SIGNING !== undefined && !['0', '1'].includes(env.DSH_DESKTOP_WINDOWS_SKIP_SIGNING)) {
+    throw new Error('desktop package: DSH_DESKTOP_WINDOWS_SKIP_SIGNING must be 0 or 1')
+  }
+  const skipSigning = env.DSH_DESKTOP_WINDOWS_SKIP_SIGNING === '1'
   const skipNotarization = env.DSH_DESKTOP_MACOS_SKIP_NOTARIZATION === '1'
   if (env.DSH_DESKTOP_MACOS_SKIP_NOTARIZATION !== undefined && !['0', '1'].includes(env.DSH_DESKTOP_MACOS_SKIP_NOTARIZATION)) {
     throw new Error('desktop package: DSH_DESKTOP_MACOS_SKIP_NOTARIZATION must be 0 or 1')
@@ -66,6 +70,7 @@ export function createElectronBuilderConfig(
   if (skipNotarization && (unsigned || resolvedPlatform !== 'darwin')) throw new Error('Skipping notarization requires a signed macOS build')
   const packagesMacOS = targetPlatform === 'darwin' || (targetPlatform === undefined && hostPlatform === 'darwin')
   const packagesWindows = resolvedPlatform === 'win32'
+  if (skipSigning && (unsigned || !packagesWindows)) throw new Error('Skipping Windows signing requires a Windows release build without unsigned mode')
   const applicationIcon = packagesMacOS ? '../resources/icon-macos.png' : '../resources/icon-windows.png'
   const policy = packagesMacOS && unsigned ? undefined : resolveDesktopPolicyEnvironment(env)
   if (resolvedPlatform === 'win32') installWindowsDirectoryInstaller()
@@ -82,7 +87,7 @@ export function createElectronBuilderConfig(
     // LaunchServices opens the Computer Use helper as an application, so every file of its bundles stays on disk.
     // Both architectures ship: they form one notarized payload whose manifest staging verifies as a whole.
     '**/node_modules/@deepseek-ai/dsh-cua-macos/native/bin/**/*']
-  const windowsSigner = packagesWindows && !unsigned
+  const windowsSigner = packagesWindows && !unsigned && !skipSigning
     ? createWindowsTokenSigner({
         certificateFile: env.DSH_DESKTOP_WINDOWS_CER_FILE,
         signTool: env.DSH_DESKTOP_WINDOWS_SIGNTOOL,
@@ -215,8 +220,8 @@ export function createElectronBuilderConfig(
       // release, and a rewritten one for installed-update qualification.
       await verifyDesktopRuntime(buildPaths.dsh,
         preparedRuntimeVersion ?? productVersion, { platform: resolvedPlatform, arch: resolvedArch })
-      // Unsigned Windows builds skip electron-builder's afterSign hook.
-      if (packagesWindows && unsigned) await verifyWindowsAsarUnpack(buildPaths.dsh, resourcesDir, windowsCode)
+      // Unsigned Windows builds and skip-signing Windows builds skip electron-builder's afterSign hook.
+      if (packagesWindows && (unsigned || skipSigning)) await verifyWindowsAsarUnpack(buildPaths.dsh, resourcesDir, windowsCode)
     },
     afterSign: async context => {
       if (windowsSigner !== undefined) {
@@ -249,7 +254,7 @@ export function createElectronBuilderConfig(
     },
     win: {
       icon: fileURLToPath(new URL('../resources/icon-windows.png', import.meta.url)),
-      forceCodeSigning: !unsigned,
+      forceCodeSigning: !unsigned && !skipSigning,
       signtoolOptions: {
         sign: windowsSigner,
         publisherName: windowsSigner === undefined ? undefined : resolveWindowsUpdatePublisher(env.DSH_DESKTOP_WINDOWS_CER_FILE),
