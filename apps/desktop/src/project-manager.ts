@@ -32,6 +32,7 @@ const WEB_PROFILE = PROFILE_TEMPLATES.web as ProfileTemplate
 
 /** The OPC package shipped in the Desktop Host runtime. */
 export const OPC_DESKTOP_BUNDLE = 'dsh-plugin-opc'
+export const DSHMARKET_DESKTOP_BUNDLE = 'dshmarket'
 
 const WORKSPACE_SETTINGS = 'nodeLinker: hoisted\nautoInstallPeers: false\n'
 function writeJson(path: string, value: unknown): void {
@@ -175,5 +176,5 @@ export function createDevelopmentProjectMetadata(projectDir: string, release: De
 
 /** Create the first external plugin profile without running a package manager. */
 export function createPluginProfile(projectDir: string): void {
-  initProfile(projectDir, [...WEB_PROFILE.bundles, OPC_DESKTOP_BUNDLE])
+  initProfile(projectDir, [...WEB_PROFILE.bundles, OPC_DESKTOP_BUNDLE, DSHMARKET_DESKTOP_BUNDLE])
 }
