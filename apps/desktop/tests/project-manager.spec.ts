@@ -48,7 +48,7 @@ describe('desktop external plugin profile', () => {
     await manager.applyRelease()
     const profile = manager.paths.profile
     const initialManifest = JSON.parse(readFileSync(join(profile, 'package.json'), 'utf8'))
-    expect(initialManifest.dsh.profile.bundles.slice(-7)).toEqual([
+    expect(initialManifest.dsh.profile.bundles.slice(-8)).toEqual([
       'dsh-plugin-opc',
       'dshmarket',
       'dsh-connect-workbuddy',
@@ -56,6 +56,7 @@ describe('desktop external plugin profile', () => {
       'dsh-free-search',
       'dsh-browser-cdp',
       '@deepseek-ai/dsh-cua-bundle',
+      '@michengai/dsh-skills-manager',
     ])
     seedPlugin(manager)
     const name = '@deepseek-ai/dsh-web-app'
@@ -372,6 +373,7 @@ describe('desktop link-backend projections', () => {
       'dsh-free-search',
       'dsh-browser-cdp',
       '@deepseek-ai/dsh-cua-bundle',
+      '@michengai/dsh-skills-manager',
     ])
     const seeded = JSON.parse(readFileSync(join(profile, 'desktop-bundled-defaults.json'), 'utf8')) as string[]
     expect(seeded).toEqual([
@@ -381,6 +383,7 @@ describe('desktop link-backend projections', () => {
       'dsh-free-search',
       'dsh-browser-cdp',
       '@deepseek-ai/dsh-cua-bundle',
+      '@michengai/dsh-skills-manager',
     ])
 
     manifest.dsh.profile.bundles = manifest.dsh.profile.bundles.filter(name => name !== 'dsh-free-search')

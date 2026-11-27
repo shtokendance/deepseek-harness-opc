@@ -41,6 +41,7 @@ export const DEFAULT_DESKTOP_BUNDLES = [
   'dsh-free-search',
   'dsh-browser-cdp',
   '@deepseek-ai/dsh-cua-bundle',
+  '@michengai/dsh-skills-manager',
 ] as const
 
 const WORKSPACE_SETTINGS = 'nodeLinker: hoisted\nautoInstallPeers: false\n'
