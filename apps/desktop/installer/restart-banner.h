@@ -5,6 +5,8 @@
 namespace restart_banner {
 constexpr wchar_t stateKey[] = L"HarnessInstaller.RestartBanner";
 constexpr int iconId = 0xffff, titleId = 76, bodyId = 1030;
+constexpr UINT_PTR progressTimerId = 1;
+constexpr int progressCycleTicks = 72;
 struct Style {
     DLGPROC previous;
     HBRUSH brush;
@@ -13,7 +15,37 @@ struct Style {
     COLORREF background;
     COLORREF foreground;
     HBITMAP bitmap;
+    bool dark;
+    int barLeft;
+    int barTop;
+    int barWidth;
+    int barHeight;
+    int tick;
 };
+
+inline void PaintProgressBar(HDC dc, const Style& state) {
+    if (state.barWidth <= 0 || state.barHeight <= 0) return;
+    const int saved = SaveDC(dc);
+    const int radius = std::max<int>(2, state.barHeight);
+    SelectObject(dc, GetStockObject(NULL_PEN));
+    SelectObject(dc, GetStockObject(DC_BRUSH));
+    SetDCBrushColor(dc, state.dark ? RGB(58, 61, 68) : RGB(233, 236, 242));
+    RoundRect(dc, state.barLeft, state.barTop,
+        state.barLeft + state.barWidth + 1, state.barTop + state.barHeight + 1, radius, radius);
+    const HRGN clip = CreateRoundRectRgn(state.barLeft, state.barTop,
+        state.barLeft + state.barWidth + 1, state.barTop + state.barHeight + 1, radius, radius);
+    if (clip) {
+        SelectClipRgn(dc, clip);
+        const int pillWidth = std::max<int>(state.barHeight * 3, state.barWidth * 36 / 100);
+        const int travel = state.barWidth + pillWidth;
+        const int pillLeft = state.barLeft - pillWidth + (travel * state.tick) / progressCycleTicks;
+        SetDCBrushColor(dc, RGB(0, 102, 255));
+        RoundRect(dc, pillLeft, state.barTop,
+            pillLeft + pillWidth + 1, state.barTop + state.barHeight + 1, radius, radius);
+        DeleteObject(clip);
+    }
+    if (saved) RestoreDC(dc, saved);
+}
 
 inline INT_PTR CALLBACK DialogProc(HWND window, UINT message, WPARAM wp, LPARAM lp) {
     auto* state = static_cast<Style*>(GetPropW(window, stateKey));
@@ -26,12 +58,19 @@ inline INT_PTR CALLBACK DialogProc(HWND window, UINT message, WPARAM wp, LPARAM 
         SetWindowLongPtrW(window, DWLP_MSGRESULT, HTCAPTION);
         return TRUE;
     }
+    if (message == WM_TIMER && wp == progressTimerId && state) {
+        state->tick = (state->tick + 1) % progressCycleTicks;
+        RECT bar{state->barLeft, state->barTop, state->barLeft + state->barWidth, state->barTop + state->barHeight};
+        InvalidateRect(window, &bar, FALSE);
+        return TRUE;
+    }
     if (message == WM_PAINT || message == WM_PRINTCLIENT) {
         PAINTSTRUCT paint{};
         HDC dc = message == WM_PAINT ? BeginPaint(window, &paint) : reinterpret_cast<HDC>(wp);
         RECT bounds{};
         GetClientRect(window, &bounds);
         FillRect(dc, &bounds, state->brush);
+        PaintProgressBar(dc, *state);
 
         if (message == WM_PAINT) EndPaint(window, &paint);
         return TRUE;
@@ -44,6 +83,7 @@ inline INT_PTR CALLBACK DialogProc(HWND window, UINT message, WPARAM wp, LPARAM 
     }
     auto result = state->previous(window, message, wp, lp);
     if (message == WM_NCDESTROY) {
+        KillTimer(window, progressTimerId);
         RemovePropW(window, stateKey);
         DeleteObject(state->font);
         DeleteObject(state->brush);
@@ -71,10 +111,14 @@ static void InstallerStyleRestartBanner(HWND window, LPCWSTR text,
     HMODULE module;
     if (!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_PIN,
         reinterpret_cast<LPCWSTR>(&restart_banner::DialogProc), &module)) return;
+    const BOOL dark = background != RGB(255, 255, 255);
     auto* state = new (std::nothrow) restart_banner::Style{
         reinterpret_cast<DLGPROC>(GetWindowLongPtrW(window, DWLP_DLGPROC)), CreateSolidBrush(background),
         CreateFontW(-px(logicalFontSize), 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET,
-            OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH, face), CreateFontW(-px(16), 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH, face), background, foreground, nullptr};
+            OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH, face),
+        CreateFontW(-px(16), 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET,
+            OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH, face),
+        background, foreground, nullptr, dark != FALSE, 0, 0, 0, 0, 0};
     if (!state) return;
     if (!state->brush || !state->titleFont || !state->font || !SetPropW(window, restart_banner::stateKey, state)) {
         DeleteObject(state->font);
@@ -96,12 +140,18 @@ static void InstallerStyleRestartBanner(HWND window, LPCWSTR text,
     state->bitmap = bitmap;
     const int titleHeight = px(22), titleGap = px(4);
     const int textHeight = titleHeight + titleGap + paragraph.bottom;
-    const int height = 2 * padding + std::max<int>(iconSize, textHeight);
+    const int contentHeight = std::max<int>(iconSize, textHeight);
+    const int barGap = px(14), barHeight = px(5);
+    const int height = 2 * padding + contentHeight + barGap + barHeight;
+    state->barLeft = padding;
+    state->barTop = padding + contentHeight + barGap;
+    state->barWidth = width - 2 * padding;
+    state->barHeight = barHeight;
+    SetTimer(window, restart_banner::progressTimerId, 28, nullptr);
     // The stock Banner dialog has a raised system edge outside the themed client area.
     SetWindowLongPtrW(window, GWL_STYLE, GetWindowLongPtrW(window, GWL_STYLE) & ~DS_MODALFRAME);
     SetWindowLongPtrW(window, GWL_EXSTYLE, GetWindowLongPtrW(window, GWL_EXSTYLE) &
         ~(WS_EX_DLGMODALFRAME | WS_EX_WINDOWEDGE));
-    const BOOL dark = background != RGB(255, 255, 255);
     DwmSetWindowAttribute(window, DWMWA_USE_IMMERSIVE_DARK_MODE, &dark, sizeof(dark));
     ApplyInstallerDwmFrame(window);
     RECT client{}, outer{};
@@ -115,13 +165,13 @@ static void InstallerStyleRestartBanner(HWND window, LPCWSTR text,
     SetWindowLongPtrW(title, GWL_STYLE, (GetWindowLongPtrW(title, GWL_STYLE) & ~SS_TYPEMASK) | SS_LEFT | SS_NOPREFIX);
     SetWindowTextW(title, L"WorkOPC");
     SendMessageW(title, WM_SETFONT, reinterpret_cast<WPARAM>(state->titleFont), FALSE);
-    SetWindowPos(title, nullptr, padding + iconSize + gap, (height - textHeight) / 2,
+    SetWindowPos(title, nullptr, padding + iconSize + gap, padding + (contentHeight - textHeight) / 2,
         width - 2 * padding - gap - iconSize, titleHeight, SWP_NOZORDER | SWP_SHOWWINDOW);
     const LONG_PTR style = GetWindowLongPtrW(label, GWL_STYLE);
     SetWindowLongPtrW(label, GWL_STYLE, (style & ~SS_TYPEMASK) | SS_LEFT | SS_NOPREFIX | SS_EDITCONTROL);
     SendMessageW(label, WM_SETFONT, reinterpret_cast<WPARAM>(state->font), FALSE);
-    SetWindowPos(icon, nullptr, padding, (height - iconSize) / 2, iconSize, iconSize, SWP_NOZORDER);
-    SetWindowPos(label, nullptr, padding + iconSize + gap, (height - textHeight) / 2 + titleHeight + titleGap,
+    SetWindowPos(icon, nullptr, padding, padding + (contentHeight - iconSize) / 2, iconSize, iconSize, SWP_NOZORDER);
+    SetWindowPos(label, nullptr, padding + iconSize + gap, padding + (contentHeight - textHeight) / 2 + titleHeight + titleGap,
         width - 2 * padding - gap - iconSize, paragraph.bottom, SWP_NOZORDER);
     if (bitmap) {
         SetWindowLongPtrW(label, GWL_STYLE, (GetWindowLongPtrW(label, GWL_STYLE) & ~SS_TYPEMASK) | SS_BITMAP);
