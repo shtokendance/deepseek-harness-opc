@@ -1,11 +1,14 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [string]$Version = '',
     [ValidateSet('stable', 'nightly')]
     [string]$Channel = 'stable',
     [switch]$DryRun,
     [switch]$NoCommit,
-    [switch]$NoOpen
+    [switch]$NoOpen,
+    [switch]$Upload,
+    [switch]$NoUpload,
+    [switch]$Publish
 )
 
 $ErrorActionPreference = 'Stop'
@@ -14,6 +17,7 @@ $RepoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 $RootPkgPath = Join-Path $RepoRoot 'package.json'
 $DesktopPkgPath = Join-Path $RepoRoot 'apps\desktop\package.json'
 $EnvWindowsPath = Join-Path $RepoRoot 'apps\desktop\.env.windows'
+$EnvLocalPath = Join-Path $PSScriptRoot '.env.local'
 
 function Get-NextVersion {
     param([Parameter(Mandatory)][string]$Current)
@@ -73,9 +77,27 @@ function Invoke-Checked {
     }
 }
 
+function Read-LocalAdminKey {
+    if ($env:WORKOPC_ADMIN_KEY) { return $env:WORKOPC_ADMIN_KEY }
+    if ($env:PLATFORM_ADMIN_KEY) { return $env:PLATFORM_ADMIN_KEY }
+    if (Test-Path -LiteralPath $EnvLocalPath) {
+        foreach ($line in Get-Content -LiteralPath $EnvLocalPath) {
+            $trimmed = $line.Trim()
+            if (-not $trimmed -or $trimmed.StartsWith('#')) { continue }
+            $idx = $trimmed.IndexOf('=')
+            if ($idx -le 0) { continue }
+            $k = $trimmed.Substring(0, $idx).Trim()
+            $v = $trimmed.Substring($idx + 1).Trim().Trim("'`"")
+            if (($k -eq 'WORKOPC_ADMIN_KEY' -or $k -eq 'PLATFORM_ADMIN_KEY') -and $v) {
+                return $v
+            }
+        }
+    }
+    return ''
+}
+
 Push-Location $RepoRoot
 try {
-    # Refresh PATH so newly installed pwsh / fnm are visible in this session.
     $machinePath = [Environment]::GetEnvironmentVariable('Path', 'Machine')
     $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
     if ($machinePath -or $userPath) {
@@ -181,6 +203,62 @@ try {
     Write-Host "UpdateYml : $updateYmlPath"
     Write-Host "Admin URL : https://aiwork.benlai.com/admin/workopc"
     Write-Host "===============================================" -ForegroundColor Green
+
+    $shouldUpload = $false
+    if ($Upload -or $Publish) {
+        $shouldUpload = $true
+    } elseif (-not $NoUpload) {
+        $uploadAns = Read-Host "是否自动上传产物到 WorkOPC 发布中心并生成中文更新日志（草稿）？[Y/n]"
+        $shouldUpload = ([string]::IsNullOrWhiteSpace($uploadAns) -or $uploadAns -match '^[Yy]$')
+    }
+
+    if ($shouldUpload) {
+        $adminKey = Read-LocalAdminKey
+        if (-not $adminKey) {
+            $secKey = Read-Host "请输入 WorkOPC 发布中心管理员密钥 (WORKOPC_ADMIN_KEY)" -AsSecureString
+            if ($secKey -and $secKey.Length -gt 0) {
+                $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secKey)
+                try { $adminKey = [Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr) } finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr) }
+                if ($adminKey) {
+                    $saveAns = Read-Host "是否保存到 $EnvLocalPath（仅本机使用，已加入 .gitignore）？[Y/n]"
+                    if ([string]::IsNullOrWhiteSpace($saveAns) -or $saveAns -match '^[Yy]$') {
+                        [IO.File]::WriteAllText($EnvLocalPath, "WORKOPC_ADMIN_KEY=$adminKey`n", [Text.UTF8Encoding]::new($false))
+                    }
+                }
+            }
+        }
+
+        if (-not $adminKey) {
+            Write-Host "未提供 WORKOPC_ADMIN_KEY，已跳过自动上传。" -ForegroundColor Yellow
+        } else {
+            $env:WORKOPC_ADMIN_KEY = $adminKey
+            $notesOut = Join-Path $artifactsDir 'release-notes.md'
+            $pubArgs = @(
+                'apps/desktop/scripts/publish-workopc-release.mjs',
+                '--version', $targetVersion,
+                '--channel', $Channel,
+                '--auto-notes',
+                '--notes-out', $notesOut
+            )
+            if ($Publish) {
+                $pubArgs += '--publish'
+            }
+            $pubArgs += @($exePath, $blockmapPath)
+
+            Invoke-Checked "Uploading Windows artifacts to WorkOPC Release Center" {
+                node @pubArgs
+            }
+
+            if (-not $Publish) {
+                $pubAns = Read-Host "制品已上传为草稿。是否立即正式发布版本 $targetVersion ($Channel)？[y/N]"
+                if ($pubAns -match '^[Yy]$') {
+                    Invoke-Checked "Publishing version $targetVersion ($Channel)" {
+                        node apps/desktop/scripts/publish-workopc-release.mjs --version $targetVersion --channel $Channel --publish-only
+                    }
+                }
+            }
+        }
+    }
 
     if ($targetVersion -ne $currentVersion -and (-not $NoCommit)) {
         Write-Host "Note: Version bump commit was created on local 'release'. Push with: git push origin release" -ForegroundColor Yellow

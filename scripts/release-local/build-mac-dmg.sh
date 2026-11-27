@@ -4,6 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 PARENT_ROOT="$(cd "$REPO_ROOT/.." && pwd)"
+ENV_LOCAL_FILE="$SCRIPT_DIR/.env.local"
 
 TARGET_VERSION=""
 ARCH="${WORKOPC_ARCH:-$(uname -m)}"
@@ -15,6 +16,8 @@ fi
 CHANNEL="${DSH_DESKTOP_UPDATE_CHANNEL:-stable}"
 NO_PULL=0
 AUTO_YES=0
+DO_UPLOAD=""
+DO_PUBLISH=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -30,12 +33,25 @@ while [[ $# -gt 0 ]]; do
       NO_PULL=1
       shift
       ;;
+    --upload)
+      DO_UPLOAD="yes"
+      shift
+      ;;
+    --no-upload)
+      DO_UPLOAD="no"
+      shift
+      ;;
+    --publish)
+      DO_UPLOAD="yes"
+      DO_PUBLISH=1
+      shift
+      ;;
     -y|--yes)
       AUTO_YES=1
       shift
       ;;
     -h|--help)
-      echo "Usage: $0 [version] [--arch arm64|x64] [--channel stable|nightly] [--no-pull] [-y|--yes]"
+      echo "Usage: $0 [version] [--arch arm64|x64] [--channel stable|nightly] [--no-pull] [--upload|--no-upload] [--publish] [-y|--yes]"
       exit 0
       ;;
     *)
@@ -136,16 +152,86 @@ OUT_DIR="$REPO_ROOT/apps/desktop/.desktop-build/release-local/$TARGET_VERSION"
 mkdir -p "$OUT_DIR"
 cp -f "$SIGNED_DIR/WorkOPC-$TARGET_VERSION-mac-$ARCH.dmg" "$OUT_DIR/"
 cp -f "$SIGNED_DIR/WorkOPC-$TARGET_VERSION-mac-$ARCH.zip" "$OUT_DIR/"
+if [[ -f "$SIGNED_DIR/WorkOPC-$TARGET_VERSION-mac-$ARCH.zip.blockmap" ]]; then
+  cp -f "$SIGNED_DIR/WorkOPC-$TARGET_VERSION-mac-$ARCH.zip.blockmap" "$OUT_DIR/"
+fi
+
+ARTIFACT_FILES=(
+  "$OUT_DIR/WorkOPC-$TARGET_VERSION-mac-$ARCH.dmg"
+  "$OUT_DIR/WorkOPC-$TARGET_VERSION-mac-$ARCH.zip"
+)
+if [[ -f "$OUT_DIR/WorkOPC-$TARGET_VERSION-mac-$ARCH.zip.blockmap" ]]; then
+  ARTIFACT_FILES+=("$OUT_DIR/WorkOPC-$TARGET_VERSION-mac-$ARCH.zip.blockmap")
+fi
 
 echo ""
 echo "Done! Artifacts ready in: $OUT_DIR"
 ls -lh "$OUT_DIR"
-echo ""
-echo "Optional upload command:"
-echo "  WORKOPC_ADMIN_KEY=<PLATFORM_ADMIN_KEY> node apps/desktop/scripts/publish-workopc-release.mjs \\"
-echo "    --version $TARGET_VERSION --channel $CHANNEL --target mac-$ARCH --signed true --notarized true --publish \\"
-echo "    \"$OUT_DIR/WorkOPC-$TARGET_VERSION-mac-$ARCH.dmg\" \\"
-echo "    \"$OUT_DIR/WorkOPC-$TARGET_VERSION-mac-$ARCH.zip\""
+
+SHOULD_UPLOAD=0
+if [[ "$DO_UPLOAD" == "yes" ]]; then
+  SHOULD_UPLOAD=1
+elif [[ "$DO_UPLOAD" == "no" ]]; then
+  SHOULD_UPLOAD=0
+elif [[ "$AUTO_YES" -eq 1 ]]; then
+  SHOULD_UPLOAD=1
+elif [[ -t 0 ]]; then
+  read -r -p "是否自动上传制品到 WorkOPC 发布中心并生成中文更新日志（草稿）？[Y/n]: " UPLOAD_ANS
+  if [[ -z "$UPLOAD_ANS" || "$UPLOAD_ANS" =~ ^[Yy]$ ]]; then
+    SHOULD_UPLOAD=1
+  fi
+fi
+
+if [[ "$SHOULD_UPLOAD" -eq 1 ]]; then
+  if [[ -f "$ENV_LOCAL_FILE" ]]; then
+    set -a
+    . "$ENV_LOCAL_FILE"
+    set +a
+  fi
+
+  ADMIN_KEY="${WORKOPC_ADMIN_KEY:-${PLATFORM_ADMIN_KEY:-}}"
+  if [[ -z "$ADMIN_KEY" && -t 0 ]]; then
+    read -r -s -p "请输入 WorkOPC 发布中心管理员密钥 (WORKOPC_ADMIN_KEY): " INPUT_KEY
+    echo ""
+    ADMIN_KEY="$INPUT_KEY"
+    if [[ -n "$ADMIN_KEY" ]]; then
+      read -r -p "是否保存到 $ENV_LOCAL_FILE（仅本机使用，已加入 .gitignore）？[Y/n]: " SAVE_KEY_ANS
+      if [[ -z "$SAVE_KEY_ANS" || "$SAVE_KEY_ANS" =~ ^[Yy]$ ]]; then
+        printf "WORKOPC_ADMIN_KEY=%q\n" "$ADMIN_KEY" > "$ENV_LOCAL_FILE"
+        chmod 600 "$ENV_LOCAL_FILE"
+      fi
+    fi
+  fi
+
+  if [[ -z "$ADMIN_KEY" ]]; then
+    echo "未提供 WORKOPC_ADMIN_KEY，已跳过自动上传。" >&2
+  else
+    export WORKOPC_ADMIN_KEY="$ADMIN_KEY"
+    PUBLISH_ARGS=(
+      --version "$TARGET_VERSION"
+      --channel "$CHANNEL"
+      --auto-notes
+      --notes-out "$OUT_DIR/release-notes.md"
+    )
+    if [[ "$DO_PUBLISH" -eq 1 ]]; then
+      PUBLISH_ARGS+=(--publish)
+    fi
+    node apps/desktop/scripts/publish-workopc-release.mjs "${PUBLISH_ARGS[@]}" "${ARTIFACT_FILES[@]}"
+
+    if [[ "$DO_PUBLISH" -eq 0 && -t 0 && "$AUTO_YES" -eq 0 ]]; then
+      read -r -p "制品已上传为草稿。是否立即正式发布版本 $TARGET_VERSION ($CHANNEL)？[y/N]: " PUB_ANS
+      if [[ "$PUB_ANS" =~ ^[Yy]$ ]]; then
+        node apps/desktop/scripts/publish-workopc-release.mjs --version "$TARGET_VERSION" --channel "$CHANNEL" --publish-only
+      fi
+    fi
+  fi
+else
+  echo ""
+  echo "如需稍后上传，可执行："
+  echo "  WORKOPC_ADMIN_KEY=<PLATFORM_ADMIN_KEY> node apps/desktop/scripts/publish-workopc-release.mjs \\"
+  echo "    --version $TARGET_VERSION --channel $CHANNEL --auto-notes \\"
+  echo "    \"${ARTIFACT_FILES[*]}\""
+fi
 
 if [[ -t 1 ]] && command -v open >/dev/null 2>&1; then
   open "$OUT_DIR"
