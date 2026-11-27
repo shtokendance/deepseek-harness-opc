@@ -42,10 +42,22 @@ function identityField(manifest: Record<string, unknown>, field: 'name' | 'versi
  * @throws if package.json cannot be read or its version is missing or invalid.
  */
 export function getDshRuntimeVersion(): string {
+  return readRuntimeVersion(true)
+}
+
+/**
+ * Read the release version shared by first-party DSH packages.
+ * @returns the validated semantic version of this app-boot package.
+ */
+export function getDshPackageVersion(): string {
+  return readRuntimeVersion(false)
+}
+
+function readRuntimeVersion(preferUpstream: boolean): string {
   // The executable's virtual filesystem intercepts string paths, not URL arguments.
   const filename = fileURLToPath(new URL('../package.json', import.meta.url))
   const manifest = objectOf(JSON.parse(fs.readFileSync(filename, 'utf8')), 'app-boot package.json')
-  const raw = Object.hasOwn(manifest, 'dshUpstreamVersion')
+  const raw = preferUpstream && Object.hasOwn(manifest, 'dshUpstreamVersion')
     ? manifest.dshUpstreamVersion
     : Object.hasOwn(manifest, 'version')
       ? manifest.version
@@ -92,10 +104,12 @@ function unmetRequirements(fields: Record<string, unknown>, runtimeVersion: stri
 export function evaluatePluginCompatibility(
   manifest: object,
   exemptions: Readonly<Record<string, readonly string[]>> = {},
-  runtimeVersion = getDshRuntimeVersion(),
+  explicitRuntimeVersion?: string,
 ): PluginCompatibility | undefined {
-  runtimeVersionOf(runtimeVersion)
   const fields = objectOf(manifest, 'Plugin manifest')
+  const firstParty = typeof fields.name === 'string' && /^@deepseek-ai\/dsh(?:-|$)/u.test(fields.name)
+  const runtimeVersion = explicitRuntimeVersion ?? (firstParty ? getDshPackageVersion() : getDshRuntimeVersion())
+  runtimeVersionOf(runtimeVersion)
   const requirements = unmetRequirements(fields, runtimeVersion)
   if (Object.keys(requirements).length === 0) return undefined
   const name = identityField(fields, 'name')
