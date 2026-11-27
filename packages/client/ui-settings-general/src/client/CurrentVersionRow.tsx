@@ -4,7 +4,21 @@ import { Button, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import css from './CurrentVersionRow.module.css'
 
-const RELEASE_NOTES_URL = 'https://aiwork.benlai.com/workopc/download/latest.json'
+const CHANGELOG_URL = 'https://aiwork.benlai.com/workopc/update/changelog'
+const LATEST_JSON_URL = 'https://aiwork.benlai.com/workopc/download/latest.json'
+
+interface ChangelogEntry {
+  version: string
+  channel?: string
+  release_notes?: string
+  published_at?: string
+}
+
+function formatChangelog(entries: ChangelogEntry[]): string {
+  const valid = entries.filter(e => typeof e.version === 'string' && typeof e.release_notes === 'string' && e.release_notes.trim() !== '')
+  if (valid.length === 0) return ''
+  return valid.map(e => `v${e.version}${e.channel === 'nightly' ? ' (nightly)' : ''}\n${(e.release_notes ?? '').trim()}`).join('\n\n')
+}
 
 export function CurrentVersionRow({ t }: PropsRuntime<'settings.general.item'> & PropsLocale<'settings'>) {
   const version = process.env.DSH_CLIENT_VERSION
@@ -17,19 +31,28 @@ export function CurrentVersionRow({ t }: PropsRuntime<'settings.general.item'> &
     if (!open) return
     let active = true
     setLoading(true)
-    void fetch(RELEASE_NOTES_URL, { cache: 'no-store' })
+    void fetch(CHANGELOG_URL, { cache: 'no-store' })
       .then(async (res) => {
-        if (!res.ok) throw new Error('fetch failed')
-        return await res.json() as { version?: string; release_notes?: string }
+        if (!res.ok) throw new Error('changelog failed')
+        const json = await res.json() as { code?: number; data?: ChangelogEntry[] }
+        const list = Array.isArray(json.data) ? json.data : []
+        const formatted = formatChangelog(list)
+        if (list[0]?.version && active) setLatestVersion(list[0].version)
+        if (formatted) return formatted
+        throw new Error('empty changelog')
       })
-      .then((data) => {
-        if (!active) return
-        setLatestVersion(typeof data.version === 'string' ? data.version : '')
-        setNotes(typeof data.release_notes === 'string' ? data.release_notes.trim() : '')
+      .catch(async () => {
+        const res = await fetch(LATEST_JSON_URL, { cache: 'no-store' })
+        if (!res.ok) throw new Error('latest failed')
+        const data = await res.json() as { version?: string; release_notes?: string }
+        if (typeof data.version === 'string' && active) setLatestVersion(data.version)
+        return typeof data.release_notes === 'string' ? data.release_notes.trim() : ''
+      })
+      .then((text) => {
+        if (active) setNotes(text)
       })
       .catch(() => {
-        if (!active) return
-        setNotes('')
+        if (active) setNotes('')
       })
       .finally(() => {
         if (active) setLoading(false)

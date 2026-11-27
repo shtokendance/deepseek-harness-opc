@@ -437,14 +437,14 @@ it('does not describe a saved selection that failed to apply as unsaved', () => 
 it('opens a changelog modal from CurrentVersionRow', async () => {
   vi.stubEnv('DSH_CLIENT_VERSION', '0.2.4')
   const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(
-    JSON.stringify({ version: '0.2.4', release_notes: 'Added changelog dialog and sidebar OPC panel.' }),
+    JSON.stringify({ code: 0, data: [{ version: '0.2.4', channel: 'stable', release_notes: 'Added changelog dialog and sidebar OPC panel.' }] }),
     { status: 200, headers: { 'Content-Type': 'application/json' } },
   ))
   render(<CurrentVersionRow {...kit} t={t} />)
   fireEvent.click(screen.getByRole('button', { name: 'Release notes' }))
   await waitFor(() => {
     expect(screen.getByRole('dialog')).toBeTruthy()
-    expect(screen.getByText('Added changelog dialog and sidebar OPC panel.')).toBeTruthy()
+    expect(screen.getByText(/Added changelog dialog and sidebar OPC panel\./)).toBeTruthy()
   })
   fetchSpy.mockRestore()
 })

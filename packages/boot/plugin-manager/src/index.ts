@@ -187,18 +187,22 @@ interface UpdatePlan {
 function updateRefusal<B extends Pick<BundleInfo, 'name' | 'installed' | 'availability' | 'official' | 'version' | 'source' | 'readOnlyReason'>>(
   bundle: B | undefined, name: string,
 ): UpdateTarget<B> | string {
-  if (bundle === undefined || !bundle.installed || bundle.availability !== 'profile' || bundle.official || bundle.source === undefined) {
+  const isBundledThirdParty = bundle !== undefined && !bundle.installed && bundle.availability === 'installation' && !bundle.official
+  if (bundle === undefined || (!isBundledThirdParty && (!bundle.installed || bundle.availability !== 'profile' || bundle.official || bundle.source === undefined))) {
     return `${name} is not a third-party package installed in this profile`
   }
-  // A management bundle cannot be removed, so it cannot be replaced either.
   if (bundle.readOnlyReason !== undefined) return `${bundle.name} carries plugin management and cannot be removed`
   const installed = bundle.version
   if (installed === undefined || semver.valid(installed) === null) return `${bundle.name} declares no semver version`
-  // Only a pinned commit reinstalls the removed version when its replacement fails.
+  if (isBundledThirdParty) {
+    return { kind: 'registry', bundle, installed, parsed: { kind: 'registry', spec: bundle.name, name: bundle.name } }
+  }
+  if (bundle.source === undefined) {
+    return `${name} is not a third-party package installed in this profile`
+  }
   const origin = pinnedGitOrigin(bundle.source)
   if (origin !== undefined) return { kind: 'git', bundle, installed, source: bundle.source, origin }
   const parsed = parsedForRegistry(bundle.source)
-  // A protocol in the saved range, such as an `npm:` alias, names another package than the dependency.
   if (parsed.kind !== 'registry' || parsed.name !== bundle.name || parsed.range?.includes(':') === true) {
     return `${bundle.name} is installed neither from a registry under its own name nor from a Git commit`
   }
@@ -779,7 +783,7 @@ export class PluginManager extends TypertRemoteService {
       saveExact, enabled, expected: { name, version },
       ...registry === undefined ? {} : { registry }, ...requestId === undefined ? {} : { requestId },
     }))
-    if (this.ownerContext.get('hmr') === undefined) {
+    if (this.ownerContext.get('hmr') === undefined || !bundle.installed) {
       announce('installing')
       return { from, to: version, step: 'install', result: await installTarget() }
     }
