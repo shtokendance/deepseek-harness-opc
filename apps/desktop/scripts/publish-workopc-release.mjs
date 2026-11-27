@@ -74,15 +74,25 @@ function commitExists(sha) {
 }
 
 function collectChineseChangelog(existingReleases, currentVersion) {
+  const currentTag = `v${String(currentVersion || '').replace(/^v/u, '')}`
+  const targetRef = commitExists(currentTag) ? currentTag : 'HEAD'
+  const tagsRaw = gitOutput(['tag', '-l', 'v*', '--sort=-v:refname'])
+  const prevTag = tagsRaw
+    .split(/\r?\n/u)
+    .map((s) => s.trim())
+    .find((t) => /^v\d+\.\d+\.\d+/.test(t) && t !== currentTag)
+
   const prevRelease = (existingReleases || []).find(
     (r) => r.version !== currentVersion && r.commit_sha && (r.status === 'published' || r.status === 'archived'),
   )
   let rawLog = ''
-  if (prevRelease && commitExists(prevRelease.commit_sha)) {
-    rawLog = gitOutput(['log', '--no-merges', '--pretty=format:%s', `${prevRelease.commit_sha}..HEAD`])
+  if (prevTag && commitExists(prevTag)) {
+    rawLog = gitOutput(['log', '--no-merges', '--pretty=format:%s', `${prevTag}..${targetRef}`])
+  } else if (prevRelease && commitExists(prevRelease.commit_sha)) {
+    rawLog = gitOutput(['log', '--no-merges', '--pretty=format:%s', `${prevRelease.commit_sha}..${targetRef}`])
   }
   if (!rawLog) {
-    rawLog = gitOutput(['log', '--no-merges', '-n', '12', '--pretty=format:%s'])
+    rawLog = gitOutput(['log', '--no-merges', '-n', '12', '--pretty=format:%s', targetRef])
   }
   const subjects = rawLog ? rawLog.split(/\r?\n/u) : []
   return formatChineseChangelogFromCommits(subjects)

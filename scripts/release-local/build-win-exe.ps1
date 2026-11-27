@@ -14,55 +14,14 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $RepoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
-$RootPkgPath = Join-Path $RepoRoot 'package.json'
-$DesktopPkgPath = Join-Path $RepoRoot 'apps\desktop\package.json'
 $EnvWindowsPath = Join-Path $RepoRoot 'apps\desktop\.env.windows'
 $EnvLocalPath = Join-Path $PSScriptRoot '.env.local'
-
-function Get-NextVersion {
-    param([Parameter(Mandatory)][string]$Current)
-    if ($Current -match '^(\d+)\.(\d+)\.(\d+)-([0-9A-Za-z.-]+?)\.(\d+)$') {
-        $major = $Matches[1]
-        $minor = $Matches[2]
-        $patch = $Matches[3]
-        $tag = $Matches[4]
-        $num = [int]$Matches[5] + 1
-        return "$major.$minor.$patch-$tag.$num"
-    }
-    if ($Current -match '^(\d+)\.(\d+)\.(\d+)$') {
-        $major = $Matches[1]
-        $minor = $Matches[2]
-        $patch = [int]$Matches[3] + 1
-        return "$major.$minor.$patch"
-    }
-    throw "Cannot auto-increment version '$Current'; please specify -Version explicitly."
-}
 
 function Assert-ValidSemver {
     param([Parameter(Mandatory)][string]$Value)
     if ($Value -notmatch '^\d+\.\d+\.\d+(?:-[0-9A-Za-z]+(?:\.[0-9A-Za-z]+)*)?$') {
         throw "Invalid version format '$Value'. Expected semver like 0.2.4 or 0.2.4-alpha.1."
     }
-}
-
-function Update-ManifestVersion {
-    param(
-        [Parameter(Mandatory)][string]$Path,
-        [Parameter(Mandatory)][string]$NewVersion
-    )
-    $raw = [IO.File]::ReadAllText($Path, [Text.UTF8Encoding]::new($false))
-    $updated = [regex]::Replace(
-        $raw,
-        '("version"\s*:\s*")([^"]+)(")',
-        { param($m) $m.Groups[1].Value + $NewVersion + $m.Groups[3].Value },
-        [System.Text.RegularExpressions.RegexOptions]::None,
-        [TimeSpan]::FromSeconds(2)
-    )
-    if ($updated -eq $raw) {
-        return $false
-    }
-    [IO.File]::WriteAllText($Path, $updated, [Text.UTF8Encoding]::new($false))
-    return $true
 }
 
 function Invoke-Checked {
@@ -97,6 +56,7 @@ function Read-LocalAdminKey {
 }
 
 Push-Location $RepoRoot
+$checkedOutTag = $false
 try {
     $machinePath = [Environment]::GetEnvironmentVariable('Path', 'Machine')
     $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
@@ -119,7 +79,7 @@ try {
             throw "Working tree has uncommitted changes. Please commit or stash them before running release build."
         }
 
-        Invoke-Checked 'Switching to release and pulling latest origin/release' {
+        Invoke-Checked 'Switching to release and pulling latest origin/release + tags' {
             git checkout release
             if ($LASTEXITCODE -eq 0) {
                 git pull --ff-only origin release
@@ -127,39 +87,46 @@ try {
         }
     }
 
-    $rootPkg = Get-Content $RootPkgPath -Raw | ConvertFrom-Json
-    $currentVersion = [string]$rootPkg.version
-    $defaultNextVersion = Get-NextVersion -Current $currentVersion
+    $suggestArgs = @('apps/desktop/scripts/prepare-workopc-release.mjs', '--suggest')
+    if ($DryRun) { $suggestArgs += '--no-pull' }
+    $suggestRaw = node @suggestArgs
+    if ($LASTEXITCODE -ne 0) { throw "Failed to query version suggestion." }
+    $suggest = $suggestRaw | ConvertFrom-Json
 
-    $targetVersion = $Version.Trim()
+    $currentVersion = [string]$suggest.currentPackageVersion
+    $latestTag = if ($suggest.latestTag) { [string]$suggest.latestTag } else { '无' }
+    $defaultBuildVersion = [string]$suggest.defaultBuildVersion
+
+    $targetVersion = $Version.Trim().TrimStart('v')
     if (-not $targetVersion) {
         Write-Host ""
-        Write-Host "Current release version : $currentVersion" -ForegroundColor Yellow
-        Write-Host "Default next version (+1): $defaultNextVersion" -ForegroundColor Green
-        $inputVersion = Read-Host "Enter version to build (press Enter for $defaultNextVersion, or type custom like 0.2.4)"
-        $targetVersion = if ($inputVersion.Trim()) { $inputVersion.Trim() } else { $defaultNextVersion }
+        Write-Host "当前代码版本: $currentVersion | 最新 Git Tag: $latestTag" -ForegroundColor Yellow
+        $inputVersion = Read-Host "请输入要打包的版本或 Tag（直接回车默认 $defaultBuildVersion）"
+        $targetVersion = if ($inputVersion.Trim()) { $inputVersion.Trim().TrimStart('v') } else { $defaultBuildVersion }
     }
 
     Assert-ValidSemver -Value $targetVersion
     Write-Host "==> Target build version: $targetVersion (channel: $Channel)" -ForegroundColor Green
 
     if ($DryRun) {
-        Write-Host "[DryRun] Skipping file edits, git commit, pnpm install, and packaging." -ForegroundColor Yellow
+        Write-Host "[DryRun] Skipping tag creation, checkout, pnpm install, and packaging." -ForegroundColor Yellow
         return
     }
 
-    if ($targetVersion -ne $currentVersion) {
-        $changedRoot = Update-ManifestVersion -Path $RootPkgPath -NewVersion $targetVersion
-        $changedDesktop = Update-ManifestVersion -Path $DesktopPkgPath -NewVersion $targetVersion
-        if (($changedRoot -or $changedDesktop) -and (-not $NoCommit)) {
-            Invoke-Checked "Committing version bump ($targetVersion) on release" {
-                git add package.json apps/desktop/package.json
-                if ($LASTEXITCODE -eq 0) {
-                    git commit -m "chore(desktop): bump version to $targetVersion"
-                }
-            }
-        }
+    $artifactsDir = Join-Path $RepoRoot 'apps\desktop\.desktop-build\targets\win-x64\artifacts'
+    $notesOut = Join-Path $artifactsDir 'release-notes.md'
+
+    $prepareArgs = @('apps/desktop/scripts/prepare-workopc-release.mjs', '--version', $targetVersion, '--notes-out', $notesOut)
+    if ($NoCommit) { $prepareArgs += '--no-push' }
+
+    Invoke-Checked "Preparing Git Tag v$targetVersion & Chinese changelog" {
+        node @prepareArgs
     }
+
+    Invoke-Checked "Checking out Git Tag v$targetVersion" {
+        git checkout "v$targetVersion"
+    }
+    $checkedOutTag = $true
 
     if (-not (Test-Path -LiteralPath $EnvWindowsPath)) {
         Write-Host "==> Creating apps/desktop/.env.windows with WorkOPC production defaults" -ForegroundColor Cyan
@@ -186,7 +153,6 @@ try {
         pnpm run package:desktop:win:x64:no-sign --build-version $targetVersion
     }
 
-    $artifactsDir = Join-Path $RepoRoot 'apps\desktop\.desktop-build\targets\win-x64\artifacts'
     $exePath = Join-Path $artifactsDir "WorkOPC-$targetVersion-win-x64.exe"
     $blockmapPath = Join-Path $artifactsDir "WorkOPC-$targetVersion-win-x64.exe.blockmap"
     $updateYmlPath = Join-Path $artifactsDir 'win-unpacked\resources\app-update.yml'
@@ -197,7 +163,7 @@ try {
 
     Write-Host ""
     Write-Host "================ Build Summary ================" -ForegroundColor Green
-    Write-Host "Version   : $targetVersion ($Channel)"
+    Write-Host "Version   : $targetVersion ($Channel) [tag: v$targetVersion]"
     Write-Host "EXE       : $exePath"
     Write-Host "Blockmap  : $blockmapPath"
     Write-Host "UpdateYml : $updateYmlPath"
@@ -232,7 +198,6 @@ try {
             Write-Host "未提供 WORKOPC_ADMIN_KEY，已跳过自动上传。" -ForegroundColor Yellow
         } else {
             $env:WORKOPC_ADMIN_KEY = $adminKey
-            $notesOut = Join-Path $artifactsDir 'release-notes.md'
             $pubArgs = @(
                 'apps/desktop/scripts/publish-workopc-release.mjs',
                 '--version', $targetVersion,
@@ -250,7 +215,7 @@ try {
             }
 
             if (-not $Publish) {
-                $pubAns = Read-Host "制品已上传为草稿。是否立即正式发布版本 $targetVersion ($Channel)？[y/N]"
+                $pubAns = Read-Host "制品已上传为草稿。是否立即正式发布版本 $targetVersion ($CHANNEL)？[y/N]"
                 if ($pubAns -match '^[Yy]$') {
                     Invoke-Checked "Publishing version $targetVersion ($Channel)" {
                         node apps/desktop/scripts/publish-workopc-release.mjs --version $targetVersion --channel $Channel --publish-only
@@ -260,13 +225,12 @@ try {
         }
     }
 
-    if ($targetVersion -ne $currentVersion -and (-not $NoCommit)) {
-        Write-Host "Note: Version bump commit was created on local 'release'. Push with: git push origin release" -ForegroundColor Yellow
-    }
-
     if (-not $NoOpen) {
         Start-Process explorer.exe $artifactsDir
     }
 } finally {
+    if ($checkedOutTag) {
+        git checkout release | Out-Null
+    }
     Pop-Location
 }
