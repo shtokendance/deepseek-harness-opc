@@ -80,7 +80,7 @@ else
   git pull --ff-only origin release
 fi
 
-SUGGEST_JSON="$(node apps/desktop/scripts/prepare-workopc-release.mjs --suggest "${PREPARE_ARGS[@]}")"
+SUGGEST_JSON="$(node apps/desktop/scripts/prepare-workopc-release.mjs --suggest ${PREPARE_ARGS[@]+"${PREPARE_ARGS[@]}"})"
 CURRENT_VERSION="$(node -e "const d=JSON.parse(process.argv[1]);console.log(d.currentPackageVersion)" "$SUGGEST_JSON")"
 LATEST_TAG="$(node -e "const d=JSON.parse(process.argv[1]);console.log(d.latestTag || '无')" "$SUGGEST_JSON")"
 DEFAULT_BUILD_VERSION="$(node -e "const d=JSON.parse(process.argv[1]);console.log(d.defaultBuildVersion)" "$SUGGEST_JSON")"
@@ -105,7 +105,7 @@ OUT_DIR="$REPO_ROOT/apps/desktop/.desktop-build/release-local/$TARGET_VERSION"
 mkdir -p "$OUT_DIR"
 
 echo "==> Preparing Git Tag v$TARGET_VERSION & changelog..."
-node apps/desktop/scripts/prepare-workopc-release.mjs --version "$TARGET_VERSION" --notes-out "$OUT_DIR/release-notes.md" "${PREPARE_ARGS[@]}"
+node apps/desktop/scripts/prepare-workopc-release.mjs --version "$TARGET_VERSION" --notes-out "$OUT_DIR/release-notes.md" ${PREPARE_ARGS[@]+"${PREPARE_ARGS[@]}"}
 
 cleanup_checkout() {
   if [[ "$NO_PULL" -eq 0 ]]; then
@@ -211,7 +211,7 @@ if [[ "$SHOULD_UPLOAD" -eq 1 ]]; then
     if [[ "$DO_PUBLISH" -eq 1 ]]; then
       PUBLISH_ARGS+=(--publish)
     fi
-    node apps/desktop/scripts/publish-workopc-release.mjs "${PUBLISH_ARGS[@]}" "${ARTIFACT_FILES[@]}"
+    node apps/desktop/scripts/publish-workopc-release.mjs ${PUBLISH_ARGS[@]+"${PUBLISH_ARGS[@]}"} ${ARTIFACT_FILES[@]+"${ARTIFACT_FILES[@]}"}
 
     if [[ "$DO_PUBLISH" -eq 0 && -t 0 && "$AUTO_YES" -eq 0 ]]; then
       read -r -p "制品已上传为草稿。是否立即正式发布版本 $TARGET_VERSION ($CHANNEL)？[y/N]: " PUB_ANS
