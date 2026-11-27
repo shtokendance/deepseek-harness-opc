@@ -42,7 +42,7 @@ export function localMacOSPackageEnvironment(environment = process.env) {
  * @param {'win32' | 'darwin'} platform Target platform.
  * @param {NodeJS.ProcessEnv} environment Parent environment, retained only for unrelated build tools.
  * @param {string} appRoot Desktop application directory; relative credential paths resolve here.
- * @param {{ unsigned?: boolean, prepareOnly?: boolean }} options Unsigned presets and Windows preparation-only presets never read signing credentials.
+ * @param {{ unsigned?: boolean, prepareOnly?: boolean, skipSigning?: boolean }} options Unsigned presets, Windows preparation-only, and skip-signing presets never read signing credentials.
  * @returns {NodeJS.ProcessEnv} Isolated environment with file-owned release settings.
  */
 export function loadDesktopPackageEnvironment(platform, environment = process.env, appRoot = APP_ROOT, options = {}) {
@@ -74,7 +74,7 @@ export function loadDesktopPackageEnvironment(platform, environment = process.en
     : /^(?:DSH_DESKTOP_(?:APP_ID|AUTO_UPDATE_ENV|NPM_REGISTRY|MANDATORY_UPDATE_(?:CONFIG|(?:TEST|PROD)_ORIGIN))|DOWNLOAD_TEST_(?:ORIGIN|RELEASE_ID))$/u.test(name) || publicPlatformSetting.test(name))
   if (preset !== undefined) {
     if (settings.DSH_DESKTOP_AUTO_UPDATE_ENV !== preset) throw new Error('desktop package: preset deployment must match its name')
-    if (!options.unsigned && (platform === 'darwin' || !options.prepareOnly)) {
+    if (!options.unsigned && !options.skipSigning && (platform === 'darwin' || !options.prepareOnly)) {
       const filename = platform === 'win32' ? 'windows-signing.env' : 'macos-signing.env'
       Object.assign(settings, readSettings(join(dirname(dirname(path)), 'secrets', filename),
         name => platform === 'win32'
@@ -114,7 +114,7 @@ function requireReadableFile(environment, name) {
  * Validate the packaging mode before preparation without invoking a token or Apple's services.
  * @param {NodeJS.ProcessEnv} environment Selected local defaults or file-owned release settings.
  * @param {{ platform: 'win32' | 'darwin', arch: string }} target Selected release target.
- * @param {{ unsigned?: boolean, prepareOnly?: boolean, skipNotarization?: boolean }} options Explicit packaging mode.
+ * @param {{ unsigned?: boolean, prepareOnly?: boolean, skipNotarization?: boolean, skipSigning?: boolean }} options Explicit packaging mode.
  * @returns {void}
  */
 export function validateDesktopPackageEnvironment(environment, target, options = {}) {
@@ -125,15 +125,18 @@ export function validateDesktopPackageEnvironment(environment, target, options =
   if (target.platform === 'darwin') resolveMacOSPackageSettings(environment)
   else resolveWindowsPackageSettings(environment)
   if (options.unsigned) return
+  if (options.skipSigning && target.platform !== 'win32') {
+    throw new Error('desktop package: --skip-signing is only supported on win32')
+  }
   if (!options.prepareOnly) resolveDesktopAutoUpdateConfig(environment, target.platform, target.arch)
   if (target.platform === 'win32') {
-    if (!options.prepareOnly) createWindowsTokenSigner({
+    if (!options.prepareOnly && !options.skipSigning) createWindowsTokenSigner({
       certificateFile: environment.DSH_DESKTOP_WINDOWS_CER_FILE,
       signTool: environment.DSH_DESKTOP_WINDOWS_SIGNTOOL,
       tokenPin: environment.DSH_DESKTOP_WINDOWS_TOKEN_PIN,
       keyContainer: environment.DSH_DESKTOP_WINDOWS_KEY_CONTAINER,
     })
-    if (!options.prepareOnly) resolveWindowsSignatureCacheDirectory(environment)
+    if (!options.prepareOnly && !options.skipSigning) resolveWindowsSignatureCacheDirectory(environment)
   } else {
     if (environment.DSH_DESKTOP_MACOS_SIGNATURE_CACHE_DIR !== undefined) validateMacOSSignatureCacheDirectory(environment.DSH_DESKTOP_MACOS_SIGNATURE_CACHE_DIR)
     resolveMacOSSigningEnvironment(environment)

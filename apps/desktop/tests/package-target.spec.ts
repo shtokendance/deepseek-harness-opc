@@ -157,3 +157,12 @@ it('allows skipping notarization only for signed macOS packages', () => {
   }
   expect(() => parseDesktopPackageInvocation(['win-x64', '--skip-notarization'], 'win32', 'x64')).toThrow(/requires a signed macOS build/u)
 })
+
+it('allows skipping Windows signing only for win-x64 release packages', () => {
+  expect(parseDesktopPackageInvocation(['win-x64'], 'win32', 'x64').skipSigning).toBe(false)
+  expect(parseDesktopPackageInvocation(['win-x64', '--skip-signing'], 'win32', 'x64').skipSigning).toBe(true)
+  for (const flag of ['--unsigned', '--prepare-only']) {
+    expect(() => parseDesktopPackageInvocation(['win-x64', '--skip-signing', flag], 'win32', 'x64')).toThrow(/requires win-x64 without --unsigned or --prepare-only/u)
+  }
+  expect(() => parseDesktopPackageInvocation(['mac-arm64', '--skip-signing'], 'darwin', 'arm64')).toThrow(/requires win-x64 without --unsigned or --prepare-only/u)
+})
