@@ -32,7 +32,7 @@ import { INSTALL_GIT_EXAMPLE, INSTALL_PATH_EXAMPLE, type PluginManagerLocaleKey 
 import {
   bundleBusy, asksMirror, githubRecoveryRegistry, isInstallPending, offeredRegistries, rowKey, updateCandidate,
   type InstallInputError, type InstallState, type InstallSubject, type PackageRow, type PackageView,
-  type PluginManagerFace, type PluginManagerState, type RegistryChoice, type VersionCheck,
+  type PluginManagerFace, type PluginManagerState, type RegistryChoice, type RestartReason, type VersionCheck,
 } from './manager-store.ts'
 import { managementText, noticeText, packageText, registryText, restartText, rowText, type Translate } from './presentation.ts'
 import type { PluginPackageRef, PluginRowRef, PluginsSubject } from './slot-contract.ts'
@@ -744,12 +744,13 @@ function RowDetail({ pkg, row, t, resolveText, onBack, renderSlot, renderFactory
  * and configure controls, unless the Host reports an error and no rows; and where it comes from.
  */
 function PackageDetail({
-  pkg, t, resolveText, busy, rowBusy, configured, configure, sections, renderSlot, renderFactory, inMore, versions, detail,
+  pkg, t, resolveText, busy, rowBusy, configured, configure, sections, renderSlot, renderFactory, inMore, versions, pendingRestart, detail,
   onBack, onSetEnabled, onUninstall, onUpdate, onSetRowEnabled, onEnsureVersions, onCheckVersions, onUpdateVersion,
 }: {
   readonly pkg: PackageView
   /** The package's version check, when one started. */
   readonly versions: VersionCheck | undefined
+  readonly pendingRestart?: { readonly version: string; readonly reason?: RestartReason }
   /** The bundle's detail document section, shown first among the page's sections. */
   readonly detail: ReactNode
   readonly t: Translate
@@ -863,7 +864,8 @@ function PackageDetail({
           configure={configure}
         />)}
         <VersionSection
-          pkg={pkg} check={versions} t={t} busy={busy} onEnsure={onEnsureVersions} onCheck={onCheckVersions} onUpdate={onUpdateVersion}
+          pkg={pkg} check={versions} pendingRestart={pendingRestart} t={t} busy={busy}
+          onEnsure={onEnsureVersions} onCheck={onCheckVersions} onUpdate={onUpdateVersion}
         />
         <SourceSection pkg={pkg} t={t} />
         {renderSlot('plugins.detail.section', { subject })}
@@ -1849,6 +1851,7 @@ export function PluginManagerPage(props: PluginManagerPageProps): ReactNode {
           ? (
             <PackageDetail
               pkg={openPkg}
+              pendingRestart={state.pendingRestart[openPkg.name]}
               t={t}
               resolveText={resolveText}
               busy={packageBusy(openPkg)}

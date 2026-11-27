@@ -83,6 +83,7 @@ const READY: PluginManagerState = {
   notice: null,
   install: IDLE_INSTALL,
   versions: {},
+  pendingRestart: {},
   update: null,
   confirm: null,
   highlight: null,
@@ -3132,6 +3133,17 @@ describe('registry versions and updates', () => {
     expect(screen.getByText(en.updatesNone)).toBeTruthy()
     set({ versions: { 'dsh-better-sidebar': { phase: 'done', checkedAt: 0, list: { status: 'refused', problem: 'unknown', reason: 'x', attempts: [] } } } })
     expect(screen.getByText(en.updatesFailed)).toBeTruthy()
+  })
+
+  it('shows pending restart notice in VersionSection even after update dialog is closed and versions are up to date', () => {
+    const { navigation } = renderTab({
+      packages: [updatable({ version: '0.17.0' })],
+      versions: { 'dsh-better-sidebar': listed([], '0.17.0') },
+      pendingRestart: { 'dsh-better-sidebar': { version: '0.17.0', reason: 'no-hmr' } },
+    })
+    open(navigation)
+    expect(within(section()).getByText('0.17.0 installed; it takes effect after a restart')).toBeTruthy()
+    expect(within(section()).getByText(/This profile applies changes only at startup/)).toBeTruthy()
   })
 
   const base: UpdateState = {

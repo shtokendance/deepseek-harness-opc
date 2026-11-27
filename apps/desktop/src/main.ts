@@ -740,6 +740,8 @@ async function main(): Promise<void> {
         const stillActive = await host.updateTasks('lock')
         if (stillActive && !active) throw new DesktopUpdatePreparationError('tasks-changed', locale.messages.updateTasksChanged)
         mandatoryUI?.preparingRestart(stillActive)
+        if (welcomeWindow !== undefined && !welcomeWindow.isDestroyed()) welcomeWindow.hide()
+        if (mainWindow !== undefined && !mainWindow.isDestroyed()) mainWindow.hide()
         // The embedded Platform document holds credentials issued by the Host that is about to stop.
         await platformView.closeAndWait()
         await disposeFileDrag().catch((error: unknown) => { console.error(error) })
@@ -756,7 +758,10 @@ async function main(): Promise<void> {
       } catch (error) {
         operationReportsStopping = shuttingDown
         operationReportStop = undefined
-        if (!updateStoppedHost) await host.updateTasks('unlock').catch((unlockError: unknown) => { console.error(unlockError) })
+        if (!updateStoppedHost) {
+          await host.updateTasks('unlock').catch((unlockError: unknown) => { console.error(unlockError) })
+          if (mainWindow !== undefined && !mainWindow.isDestroyed() && !mainWindow.isVisible()) mainWindow.show()
+        }
         throw error
       } finally {
         requireCleanStop = false

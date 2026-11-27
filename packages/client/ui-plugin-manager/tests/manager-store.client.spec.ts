@@ -2395,6 +2395,22 @@ describe('version checks and updates', () => {
     await new Promise((resolve) => { setTimeout(resolve, 0) })
     expect(listVersions).not.toHaveBeenCalled()
   })
+
+  it('records pendingRestart for a package when update finishes with restart-required', async () => {
+    const restartResult = { ...UPDATED, result: { ...UPDATED.result, application: 'restart-required' as const, restartReason: 'no-hmr' as const } }
+    const updateBundle = vi.fn(() => Promise.resolve(ok(restartResult)))
+    const listVersions = vi.fn(() => Promise.resolve(ok(LISTED)))
+    const listBundles = vi.fn(() => Promise.resolve(ok([UPDATABLE])))
+    const { controller, face, state } = bench({ updateBundle, listVersions, listBundles })
+    await controller.load()
+    face.checkVersions('dsh-better-sidebar')
+    await vi.waitFor(() => { expect(state().versions['dsh-better-sidebar']?.phase).toBe('done') })
+    face.openUpdate('dsh-better-sidebar', '0.17.0')
+    face.runUpdate()
+    await vi.waitFor(() => { expect(state().update?.phase).toBe('done') })
+    face.closeUpdate()
+    expect(state().pendingRestart['dsh-better-sidebar']).toEqual({ version: '0.17.0', reason: 'no-hmr' })
+  })
 })
 
 
