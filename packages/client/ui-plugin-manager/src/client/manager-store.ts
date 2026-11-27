@@ -32,6 +32,7 @@ import type {
   Registry,
   RestartReason,
 } from '@deepseek-ai/dsh-api-remotes/client'
+export type { RestartReason }
 import { normalizeRegistry, NPMMIRROR_REGISTRY, OFFICIAL_NPM_REGISTRY, REGISTRY_URL } from '@deepseek-ai/dsh-plugin-manager/registry'
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { HostObservable } from '@deepseek-ai/dsh-client-ui-slots'

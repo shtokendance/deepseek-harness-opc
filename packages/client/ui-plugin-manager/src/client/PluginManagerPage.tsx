@@ -750,7 +750,7 @@ function PackageDetail({
   readonly pkg: PackageView
   /** The package's version check, when one started. */
   readonly versions: VersionCheck | undefined
-  readonly pendingRestart?: { readonly version: string; readonly reason?: RestartReason }
+  readonly pendingRestart?: { readonly version: string; readonly reason?: RestartReason } | undefined
   /** The bundle's detail document section, shown first among the page's sections. */
   readonly detail: ReactNode
   readonly t: Translate

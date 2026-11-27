@@ -247,7 +247,7 @@ function VersionList({ list, checkedAt, t, busy, onUpdate }: {
 export function VersionSection({ pkg, check, pendingRestart, t, busy, onEnsure, onCheck, onUpdate }: {
   readonly pkg: PackageView
   readonly check: VersionCheck | undefined
-  readonly pendingRestart?: { readonly version: string; readonly reason?: RestartReason }
+  readonly pendingRestart?: { readonly version: string; readonly reason?: RestartReason } | undefined
   readonly t: Translate
   readonly busy: boolean
   /** Check a package's versions unless a check already started. */
