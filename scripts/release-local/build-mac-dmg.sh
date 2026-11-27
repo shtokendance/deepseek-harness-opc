@@ -129,6 +129,14 @@ if [[ ! -f "native/system/darwin-$ARCH/bin/system.node" ]]; then
   pnpm run build:native-system
 fi
 
+CUA_NATIVE_ARCH="arm64"
+if [[ "$ARCH" == "x64" ]]; then
+  CUA_NATIVE_ARCH="x86_64"
+fi
+if [[ ! -f "packages/experimental/cua-macos/native/bin/darwin-$ARCH/current.json" ]]; then
+  xcrun python3 packages/experimental/cua-macos/native/build_app.py --arch "$CUA_NATIVE_ARCH"
+fi
+
 DSH_DESKTOP_APP_ID="${DSH_DESKTOP_APP_ID:-com.workopc.desktop}" \
   pnpm --filter @deepseek-ai/dsh-desktop run "package:mac:${ARCH}:dir" -- --unsigned
 
