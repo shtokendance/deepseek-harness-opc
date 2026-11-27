@@ -48,13 +48,14 @@ describe('desktop external plugin profile', () => {
     await manager.applyRelease()
     const profile = manager.paths.profile
     const initialManifest = JSON.parse(readFileSync(join(profile, 'package.json'), 'utf8'))
-    expect(initialManifest.dsh.profile.bundles.slice(-6)).toEqual([
+    expect(initialManifest.dsh.profile.bundles.slice(-7)).toEqual([
       'dsh-plugin-opc',
       'dshmarket',
       'dsh-connect-workbuddy',
       'dsh-better-sidebar',
       'dsh-free-search',
       'dsh-browser-cdp',
+      '@deepseek-ai/dsh-cua-bundle',
     ])
     seedPlugin(manager)
     const name = '@deepseek-ai/dsh-web-app'
@@ -370,6 +371,7 @@ describe('desktop link-backend projections', () => {
       'dsh-better-sidebar',
       'dsh-free-search',
       'dsh-browser-cdp',
+      '@deepseek-ai/dsh-cua-bundle',
     ])
     const seeded = JSON.parse(readFileSync(join(profile, 'desktop-bundled-defaults.json'), 'utf8')) as string[]
     expect(seeded).toEqual([
@@ -378,6 +380,7 @@ describe('desktop link-backend projections', () => {
       'dsh-better-sidebar',
       'dsh-free-search',
       'dsh-browser-cdp',
+      '@deepseek-ai/dsh-cua-bundle',
     ])
 
     manifest.dsh.profile.bundles = manifest.dsh.profile.bundles.filter(name => name !== 'dsh-free-search')

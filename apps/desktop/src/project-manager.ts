@@ -40,6 +40,7 @@ export const DEFAULT_DESKTOP_BUNDLES = [
   'dsh-better-sidebar',
   'dsh-free-search',
   'dsh-browser-cdp',
+  '@deepseek-ai/dsh-cua-bundle',
 ] as const
 
 const WORKSPACE_SETTINGS = 'nodeLinker: hoisted\nautoInstallPeers: false\n'
