@@ -37,7 +37,6 @@ export const DEFAULT_DESKTOP_BUNDLES = [
   OPC_DESKTOP_BUNDLE,
   DSHMARKET_DESKTOP_BUNDLE,
   'dsh-connect-workbuddy',
-  'dsh-skills-manager',
   'dsh-better-sidebar',
   'dsh-free-search',
   'dsh-browser-cdp',
