@@ -3136,14 +3136,22 @@ describe('registry versions and updates', () => {
   })
 
   it('shows pending restart notice in VersionSection even after update dialog is closed and versions are up to date', () => {
-    const { navigation } = renderTab({
-      packages: [{ ...updatable(), version: '0.17.0' }],
-      versions: { 'dsh-better-sidebar': listed([]) },
-      pendingRestart: { 'dsh-better-sidebar': { version: '0.17.0', reason: 'no-hmr' } },
-    })
-    open(navigation)
-    expect(within(section()).getByText('0.17.0 installed; it takes effect after a restart')).toBeTruthy()
-    expect(within(section()).getByText(/This profile applies changes only at startup/)).toBeTruthy()
+    const relaunch = vi.fn().mockResolvedValue(undefined)
+    const prevDesktop = (globalThis as { dshDesktop?: unknown }).dshDesktop
+    ;(globalThis as { dshDesktop?: unknown }).dshDesktop = { relaunch }
+    try {
+      const { navigation } = renderTab({
+        packages: [{ ...pkg({ availability: 'installation' }), version: '0.17.0' }],
+        pendingRestart: { 'dsh-better-sidebar': { version: '0.17.0', reason: 'no-hmr' } },
+      })
+      open(navigation)
+      expect(within(section()).getByText('0.17.0 installed; it takes effect after a restart')).toBeTruthy()
+      expect(within(section()).getByText(/This profile applies changes only at startup/)).toBeTruthy()
+      fireEvent.click(within(section()).getByRole('button', { name: en.restartNow }))
+      expect(relaunch).toHaveBeenCalledOnce()
+    } finally {
+      ;(globalThis as { dshDesktop?: unknown }).dshDesktop = prevDesktop
+    }
   })
 
   const base: UpdateState = {

@@ -34,6 +34,7 @@ function createProductApi(): DshDesktopProductApi {
       }) },
     },
     deviceInfo: () => ipcRenderer.invoke(DESKTOP_IPC.deviceInfo) as Promise<string>,
+    relaunch: () => ipcRenderer.invoke(DESKTOP_IPC.relaunch) as Promise<void>,
     keyboard: {
       closeWindow: revision => ipcRenderer.invoke(DESKTOP_IPC.shortcutsCloseWindow, revision) as Promise<void>,
       subscribe: (listener) => {

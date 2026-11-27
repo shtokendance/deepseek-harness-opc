@@ -954,6 +954,11 @@ async function main(): Promise<void> {
     assertProductSender(event)
     return readDeviceInfo()
   })
+  ipcMain.handle(DESKTOP_IPC.relaunch, (event) => {
+    assertProductSender(event)
+    app.relaunch()
+    quitWithoutConfirmation()
+  })
   ipcMain.handle(DESKTOP_IPC.onboardingApiKey, async (event) => {
     assertProductSender(event)
     return (await readWelcomeState()).hasApiKey
