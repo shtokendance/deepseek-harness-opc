@@ -244,6 +244,10 @@ function VersionList({ list, checkedAt, t, busy, onUpdate }: {
  * The Versions section of a registry bundle's page. It checks once when the page opens and folds the newer versions
  * behind a summary row.
  */
+function desktopRelaunch(): (() => Promise<void>) | undefined {
+  return (globalThis as { dshDesktop?: { relaunch?: () => Promise<void> } }).dshDesktop?.relaunch
+}
+
 export function VersionSection({ pkg, check, pendingRestart, t, busy, onEnsure, onCheck, onUpdate }: {
   readonly pkg: PackageView
   readonly check: VersionCheck | undefined
@@ -259,13 +263,14 @@ export function VersionSection({ pkg, check, pendingRestart, t, busy, onEnsure, 
   const { name } = pkg
   const listsVersions = pkg.update === 'registry'
   useEffect(() => { if (listsVersions) onEnsure(name) }, [name, listsVersions, onEnsure])
-  if (!listsVersions) return null
+  if (!listsVersions && pendingRestart === undefined) return null
   const done = check?.phase === 'done' ? check : undefined
   const summary = summaryOf(check, t, pendingRestart)
   const refused = done?.list.status === 'refused' ? done.list : undefined
   const listed = done?.list.status === 'listed' ? done.list : undefined
   const unfolds = summary.newer > 0 || (refused !== undefined && refused.attempts.length > 0)
   const expanded = open && unfolds
+  const relaunch = desktopRelaunch()
   const text = (
     <span className={css.versionSummaryText}>
       <span className={css.versionSummaryTitle}>{summary.title}</span>
@@ -277,7 +282,7 @@ export function VersionSection({ pkg, check, pendingRestart, t, busy, onEnsure, 
       <div className={css.sectionHead}>
         <h4 className={css.sectionTitle}>{t('versionsTitle')}</h4>
         <span className={css.versionSpacer} />
-        {refused === undefined ? (
+        {listsVersions && refused === undefined ? (
           <Button variant="ghost" size="sm" icon={<IconRefreshOutlineRegular size={13} />} disabled={check?.phase !== 'done'} onClick={onCheck}>
             {t('versionsRecheck')}
           </Button>
@@ -297,7 +302,11 @@ export function VersionSection({ pkg, check, pendingRestart, t, busy, onEnsure, 
           <div className={css.versionSummary} role="status">
             <Glyph tone={summary.tone}>{summary.glyph}</Glyph>
             {text}
-            {refused === undefined ? null : (
+            {pendingRestart !== undefined && relaunch !== undefined ? (
+              <span className={css.versionSummaryEnd}>
+                <Button variant="outline" size="sm" onClick={() => { void relaunch() }}>{t('restartNow')}</Button>
+              </span>
+            ) : refused === undefined ? null : (
               <span className={css.versionSummaryEnd}>
                 {unfolds ? (
                   <button type="button" className={css.detailsToggle} aria-expanded={expanded} onClick={() => { setOpen(!open) }}>
@@ -416,6 +425,8 @@ export function UpdateDialog({ update, title, t, onRun, onClose, onToggleOutput 
   const output = [update.result?.result, update.result?.restore]
     .map(change => change !== undefined && failed(change.application) ? change.packageResult?.output : undefined)
     .find(text => text !== undefined && text !== '')
+  const relaunch = desktopRelaunch()
+  const needsRestart = outcome?.tone === 'warn' && update.result?.result.application === 'restart-required'
   return (
     <Modal
       open
@@ -430,7 +441,12 @@ export function UpdateDialog({ update, title, t, onRun, onClose, onToggleOutput 
         </>
       ) : running
         ? <Button variant="outline" disabled>{t('updateRunning')}</Button>
-        : <Button variant="primary" onClick={onClose}>{t('updateFinish')}</Button>}
+        : needsRestart && relaunch !== undefined ? (
+          <>
+            <Button variant="outline" onClick={onClose}>{t('updateFinish')}</Button>
+            <Button variant="primary" onClick={() => { void relaunch() }}>{t('restartNow')}</Button>
+          </>
+        ) : <Button variant="primary" onClick={onClose}>{t('updateFinish')}</Button>}
     >
       <div className={css.updateBody} data-plugin-update={update.phase}>
         {update.phase === 'confirm' ? (
