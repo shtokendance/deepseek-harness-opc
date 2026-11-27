@@ -407,6 +407,7 @@ export interface PluginManagerState {
   readonly highlight: string | null
   /** Version checks by package name; a package never checked has no entry. */
   readonly versions: Readonly<Record<string, VersionCheck>>
+  readonly pendingRestart: Readonly<Record<string, { readonly version: string; readonly reason?: RestartReason }>>
   readonly update: UpdateState | null
 }
 
@@ -703,7 +704,7 @@ export class PluginManagerController {
     this.details = new BundleDetailController(ctx, () => document.baseURI)
     this.store = createSnapshotStore<PluginManagerState>({
       status: 'idle', refreshStatus: 'idle', packages: [], busy: [], notice: null,
-      install: IDLE_INSTALL, confirm: null, highlight: null, versions: {}, update: null,
+      install: IDLE_INSTALL, confirm: null, highlight: null, versions: {}, pendingRestart: {}, update: null,
     })
   }
 
@@ -961,7 +962,19 @@ export class PluginManagerController {
       source.kind === 'registry' ? { registry: source.registry, requestId } : { spec: source.spec, requestId })
     // Nothing closes or replaces a running update before its answer; after disposal `patch` publishes nothing.
     const current = this.getSnapshot().update as UpdateState
-    this.patch({ update: { ...current, phase: 'done', ...answer.ok ? { result: answer.value } : { lost: answer.error.message } } })
+    const nextPendingRestart = answer.ok && answer.value.result.application === 'restart-required'
+      ? {
+        ...this.getSnapshot().pendingRestart,
+        [update.packageName]: {
+          version: update.to,
+          ...answer.value.result.restartReason === undefined ? {} : { reason: answer.value.result.restartReason },
+        },
+      }
+      : this.getSnapshot().pendingRestart
+    this.patch({
+      update: { ...current, phase: 'done', ...answer.ok ? { result: answer.value } : { lost: answer.error.message } },
+      pendingRestart: nextPendingRestart,
+    })
     await this.load()
     if (source.kind === 'registry') await this.checkVersions(update.packageName)
   }

@@ -13,7 +13,7 @@ import {
   Button, Checkbox, IconCheckOutlineRegular, IconChevronDownOutlineRegular, IconChevronRightOutlineRegular, IconCloseOutlineRegular,
   IconDownloadOutlineRegular, IconRefreshOutlineRegular, IconWarningOutlineRegular, Modal, StateDot, Tag, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
-import { installable, updateCandidate, type PackageView, type UpdateSource, type UpdateState, type VersionCheck } from './manager-store.ts'
+import { installable, updateCandidate, type PackageView, type RestartReason, type UpdateSource, type UpdateState, type VersionCheck } from './manager-store.ts'
 import { managementText, registryText, restartText, type Translate } from './presentation.ts'
 import css from './PluginManagerPage.module.css'
 
@@ -73,7 +73,20 @@ interface Summary {
   newer: number
 }
 
-function summaryOf(check: VersionCheck | undefined, t: Translate): Summary {
+function summaryOf(
+  check: VersionCheck | undefined,
+  t: Translate,
+  pendingRestart?: { readonly version: string; readonly reason?: RestartReason },
+): Summary {
+  if (pendingRestart !== undefined) {
+    return {
+      tone: 'warn',
+      glyph: <IconWarningOutlineRegular size={14} />,
+      title: t('updateRestart', { version: pendingRestart.version }),
+      sub: restartText('restartNotice', pendingRestart.reason, t),
+      newer: check?.phase === 'done' && check.list.status === 'listed' ? check.list.versions.length : 0,
+    }
+  }
   if (check === undefined || check.phase === 'checking') {
     return { tone: 'neutral', glyph: <StateDot state="ongoing" size={14} />, title: t('versionsChecking'), newer: 0 }
   }
@@ -231,9 +244,10 @@ function VersionList({ list, checkedAt, t, busy, onUpdate }: {
  * The Versions section of a registry bundle's page. It checks once when the page opens and folds the newer versions
  * behind a summary row.
  */
-export function VersionSection({ pkg, check, t, busy, onEnsure, onCheck, onUpdate }: {
+export function VersionSection({ pkg, check, pendingRestart, t, busy, onEnsure, onCheck, onUpdate }: {
   readonly pkg: PackageView
   readonly check: VersionCheck | undefined
+  readonly pendingRestart?: { readonly version: string; readonly reason?: RestartReason }
   readonly t: Translate
   readonly busy: boolean
   /** Check a package's versions unless a check already started. */
@@ -247,7 +261,7 @@ export function VersionSection({ pkg, check, t, busy, onEnsure, onCheck, onUpdat
   useEffect(() => { if (listsVersions) onEnsure(name) }, [name, listsVersions, onEnsure])
   if (!listsVersions) return null
   const done = check?.phase === 'done' ? check : undefined
-  const summary = summaryOf(check, t)
+  const summary = summaryOf(check, t, pendingRestart)
   const refused = done?.list.status === 'refused' ? done.list : undefined
   const listed = done?.list.status === 'listed' ? done.list : undefined
   const unfolds = summary.newer > 0 || (refused !== undefined && refused.attempts.length > 0)
