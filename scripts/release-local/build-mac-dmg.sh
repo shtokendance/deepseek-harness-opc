@@ -89,8 +89,8 @@ if [[ -z "$TARGET_VERSION" ]]; then
   if [[ "$AUTO_YES" -eq 1 || ! -t 0 ]]; then
     TARGET_VERSION="$DEFAULT_BUILD_VERSION"
   else
-    echo "当前代码版本: $CURRENT_VERSION | 最新 Git Tag: $LATEST_TAG"
-    read -r -p "请输入要打包的版本或 Tag（直接回车默认 $DEFAULT_BUILD_VERSION）: " INPUT_VERSION
+    echo "当前代码版本: ${CURRENT_VERSION} | 最新 Git Tag: ${LATEST_TAG}"
+    read -r -p "请输入要打包的版本或 Tag (直接回车默认 ${DEFAULT_BUILD_VERSION}): " INPUT_VERSION
     TARGET_VERSION="${INPUT_VERSION:-$DEFAULT_BUILD_VERSION}"
   fi
 fi
@@ -214,7 +214,7 @@ if [[ "$SHOULD_UPLOAD" -eq 1 ]]; then
     node apps/desktop/scripts/publish-workopc-release.mjs ${PUBLISH_ARGS[@]+"${PUBLISH_ARGS[@]}"} ${ARTIFACT_FILES[@]+"${ARTIFACT_FILES[@]}"}
 
     if [[ "$DO_PUBLISH" -eq 0 && -t 0 && "$AUTO_YES" -eq 0 ]]; then
-      read -r -p "制品已上传为草稿。是否立即正式发布版本 $TARGET_VERSION ($CHANNEL)？[y/N]: " PUB_ANS
+      read -r -p "制品已上传为草稿。是否立即正式发布版本 ${TARGET_VERSION} (${CHANNEL})? [y/N]: " PUB_ANS
       if [[ "$PUB_ANS" =~ ^[Yy]$ ]]; then
         node apps/desktop/scripts/publish-workopc-release.mjs --version "$TARGET_VERSION" --channel "$CHANNEL" --publish-only
       fi
