@@ -126,6 +126,7 @@ function main() {
     '-c.mac.identity=null',
     '-c.mac.notarize=false',
   ], {
+    cwd: DESKTOP_ROOT,
     env: { ...process.env, DSH_DESKTOP_UNSIGNED: '1', DSH_DESKTOP_APP_ID: process.env.DSH_DESKTOP_APP_ID || 'com.workopc.desktop' },
   })
   const generatedDmg = join(dmgStage, `WorkOPC-${version}-${target}-unsigned.dmg`)

@@ -142,7 +142,7 @@ export APPLE_API_KEY="${APPLE_API_KEY:-$PARENT_ROOT/apple-signing/AuthKey_2D37J4
 export APPLE_API_KEY_ID="${APPLE_API_KEY_ID:-2D37J4DSW7}"
 export APPLE_API_ISSUER="${APPLE_API_ISSUER:-222345b1-fc61-4bb4-bc1b-e538f0d8044c}"
 
-node apps/desktop/scripts/sign-and-notarize-macos.mjs
+(cd "$REPO_ROOT/apps/desktop" && node scripts/sign-and-notarize-macos.mjs)
 
 SIGNED_DIR="$REPO_ROOT/apps/desktop/.desktop-build/targets/mac-$ARCH/signed-artifacts"
 cp -f "$SIGNED_DIR/WorkOPC-$TARGET_VERSION-mac-$ARCH.dmg" "$OUT_DIR/"
