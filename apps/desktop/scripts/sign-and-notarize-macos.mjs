@@ -112,15 +112,24 @@ function main() {
   rmSync(updateZip, { force: true })
   run('ditto', ['-c', '-k', '--sequesterRsrc', '--keepParent', appPath, updateZip])
 
-  const dmgStage = join(outDir, '.dmg-stage')
-  rmSync(dmgStage, { recursive: true, force: true })
-  mkdirSync(dmgStage, { recursive: true })
-  run('ditto', [appPath, join(dmgStage, 'WorkOPC.app')])
-  symlinkSync('/Applications', join(dmgStage, 'Applications'))
-
   const dmgPath = join(outDir, `WorkOPC-${version}-${target}.dmg`)
   rmSync(dmgPath, { force: true })
-  run('hdiutil', ['create', '-volname', 'WorkOPC', '-srcfolder', dmgStage, '-ov', '-format', 'UDZO', dmgPath])
+  const dmgStage = join(outDir, '.dmg-stage')
+  rmSync(dmgStage, { recursive: true, force: true })
+  const ebBin = join(DESKTOP_ROOT, 'node_modules', '.bin', 'electron-builder')
+  run(ebBin, [
+    '--mac', 'dmg', `--${arch}`,
+    '--prepackaged', appPath,
+    '--config', join(DESKTOP_ROOT, 'electron-builder.config.mjs'),
+    `-c.directories.output=${dmgStage}`,
+    '-c.dmg.sign=false',
+    '-c.mac.identity=null',
+    '-c.mac.notarize=false',
+  ], {
+    env: { ...process.env, DSH_DESKTOP_UNSIGNED: '1', DSH_DESKTOP_APP_ID: process.env.DSH_DESKTOP_APP_ID || 'com.workopc.desktop' },
+  })
+  const generatedDmg = join(dmgStage, `WorkOPC-${version}-${target}-unsigned.dmg`)
+  execFileSync('mv', [generatedDmg, dmgPath])
   rmSync(dmgStage, { recursive: true, force: true })
 
   run('codesign', ['--force', '--timestamp', '--sign', identity, dmgPath])
