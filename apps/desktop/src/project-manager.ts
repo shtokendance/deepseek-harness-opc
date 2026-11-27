@@ -175,6 +175,26 @@ export function createDevelopmentProjectMetadata(projectDir: string, release: De
 }
 
 /** Create the first external plugin profile without running a package manager. */
+const BUNDLED_DEFAULTS_FILE = 'desktop-bundled-defaults.json'
+
 export function createPluginProfile(projectDir: string): void {
   initProfile(projectDir, [...WEB_PROFILE.bundles, OPC_DESKTOP_BUNDLE, DSHMARKET_DESKTOP_BUNDLE])
+  const defaultsPath = join(projectDir, BUNDLED_DEFAULTS_FILE)
+  const seeded = existsSync(defaultsPath)
+    ? (JSON.parse(readFileSync(defaultsPath, 'utf8')) as string[])
+    : []
+  if (!seeded.includes(DSHMARKET_DESKTOP_BUNDLE)) {
+    const manifestPath = join(projectDir, 'package.json')
+    if (existsSync(manifestPath)) {
+      const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
+        dsh?: { profile?: { bundles?: string[] } }
+      }
+      const bundles = manifest.dsh?.profile?.bundles
+      if (Array.isArray(bundles) && !bundles.includes(DSHMARKET_DESKTOP_BUNDLE)) {
+        bundles.push(DSHMARKET_DESKTOP_BUNDLE)
+        writeJson(manifestPath, manifest)
+      }
+    }
+    writeJson(defaultsPath, [...seeded, DSHMARKET_DESKTOP_BUNDLE])
+  }
 }
