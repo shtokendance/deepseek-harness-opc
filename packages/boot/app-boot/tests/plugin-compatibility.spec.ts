@@ -191,6 +191,17 @@ describe('engines.dsh', () => {
   })
 })
 
+describe('first-party packages', () => {
+  it('evaluates first-party manifests against the app version and others against the upstream version', () => {
+    const manifest = JSON.parse(fs.readFileSync(fileURLToPath(new URL('../package.json', import.meta.url)), 'utf8')) as {
+      version: string
+    }
+    const range = `^${manifest.version}`
+    expect(evaluatePluginCompatibility({ name: '@deepseek-ai/dsh-web-app', version: manifest.version, engines: { dsh: range } })).toBeUndefined()
+    expect(evaluatePluginCompatibility({ name: '@example/plugin', version: '1.0.0', engines: { dsh: range } })).toBeDefined()
+  })
+})
+
 describe('exact-version exemptions', () => {
   const exemptions = { '@example/plugin@2.0.0': [runtime] }
 
