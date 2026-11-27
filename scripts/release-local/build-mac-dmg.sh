@@ -6,6 +6,11 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 PARENT_ROOT="$(cd "$REPO_ROOT/.." && pwd)"
 ENV_LOCAL_FILE="$SCRIPT_DIR/.env.local"
 
+export PATH="/opt/homebrew/bin:/usr/local/bin:$HOME/.local/share/pnpm:$PATH"
+if command -v fnm >/dev/null 2>&1; then
+  eval "$(fnm env --shell bash)"
+fi
+
 TARGET_VERSION=""
 ARCH="${WORKOPC_ARCH:-$(uname -m)}"
 if [[ "$ARCH" == "arm64" || "$ARCH" == "aarch64" ]]; then
