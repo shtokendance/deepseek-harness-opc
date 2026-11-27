@@ -33,6 +33,15 @@ const WEB_PROFILE = PROFILE_TEMPLATES.web as ProfileTemplate
 /** The OPC package shipped in the Desktop Host runtime. */
 export const OPC_DESKTOP_BUNDLE = 'dsh-plugin-opc'
 export const DSHMARKET_DESKTOP_BUNDLE = 'dshmarket'
+export const DEFAULT_DESKTOP_BUNDLES = [
+  OPC_DESKTOP_BUNDLE,
+  DSHMARKET_DESKTOP_BUNDLE,
+  'dsh-connect-workbuddy',
+  'dsh-skills-manager',
+  'dsh-better-sidebar',
+  'dsh-free-search',
+  'dsh-browser-cdp',
+] as const
 
 const WORKSPACE_SETTINGS = 'nodeLinker: hoisted\nautoInstallPeers: false\n'
 function writeJson(path: string, value: unknown): void {
@@ -178,23 +187,31 @@ export function createDevelopmentProjectMetadata(projectDir: string, release: De
 const BUNDLED_DEFAULTS_FILE = 'desktop-bundled-defaults.json'
 
 export function createPluginProfile(projectDir: string): void {
-  initProfile(projectDir, [...WEB_PROFILE.bundles, OPC_DESKTOP_BUNDLE, DSHMARKET_DESKTOP_BUNDLE])
+  initProfile(projectDir, [...WEB_PROFILE.bundles, ...DEFAULT_DESKTOP_BUNDLES])
   const defaultsPath = join(projectDir, BUNDLED_DEFAULTS_FILE)
   const seeded = existsSync(defaultsPath)
     ? (JSON.parse(readFileSync(defaultsPath, 'utf8')) as string[])
     : []
-  if (!seeded.includes(DSHMARKET_DESKTOP_BUNDLE)) {
+  const seedTargets = DEFAULT_DESKTOP_BUNDLES.slice(1)
+  const pending = seedTargets.filter(name => !seeded.includes(name))
+  if (pending.length > 0) {
     const manifestPath = join(projectDir, 'package.json')
     if (existsSync(manifestPath)) {
       const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
         dsh?: { profile?: { bundles?: string[] } }
       }
       const bundles = manifest.dsh?.profile?.bundles
-      if (Array.isArray(bundles) && !bundles.includes(DSHMARKET_DESKTOP_BUNDLE)) {
-        bundles.push(DSHMARKET_DESKTOP_BUNDLE)
-        writeJson(manifestPath, manifest)
+      if (Array.isArray(bundles)) {
+        let changed = false
+        for (const name of pending) {
+          if (!bundles.includes(name)) {
+            bundles.push(name)
+            changed = true
+          }
+        }
+        if (changed) writeJson(manifestPath, manifest)
       }
     }
-    writeJson(defaultsPath, [...seeded, DSHMARKET_DESKTOP_BUNDLE])
+    writeJson(defaultsPath, [...seeded, ...pending])
   }
 }

@@ -48,7 +48,15 @@ describe('desktop external plugin profile', () => {
     await manager.applyRelease()
     const profile = manager.paths.profile
     const initialManifest = JSON.parse(readFileSync(join(profile, 'package.json'), 'utf8'))
-    expect(initialManifest.dsh.profile.bundles.slice(-2)).toEqual(['dsh-plugin-opc', 'dshmarket'])
+    expect(initialManifest.dsh.profile.bundles.slice(-7)).toEqual([
+      'dsh-plugin-opc',
+      'dshmarket',
+      'dsh-connect-workbuddy',
+      'dsh-skills-manager',
+      'dsh-better-sidebar',
+      'dsh-free-search',
+      'dsh-browser-cdp',
+    ])
     seedPlugin(manager)
     const name = '@deepseek-ai/dsh-web-app'
     const path = join(profile, 'node_modules', name)
@@ -124,6 +132,11 @@ describe('desktop external plugin profile', () => {
     expect(manifest.dependencies.plugin).toBe('1.0.0')
     expect(manifest.dsh.profile.bundles).not.toContain('dsh-plugin-opc')
     expect(manifest.dsh.profile.bundles).not.toContain('dshmarket')
+    expect(manifest.dsh.profile.bundles).not.toContain('dsh-connect-workbuddy')
+    expect(manifest.dsh.profile.bundles).not.toContain('dsh-skills-manager')
+    expect(manifest.dsh.profile.bundles).not.toContain('dsh-better-sidebar')
+    expect(manifest.dsh.profile.bundles).not.toContain('dsh-free-search')
+    expect(manifest.dsh.profile.bundles).not.toContain('dsh-browser-cdp')
     expect(manifest.dsh.profile.bundles).not.toContain('plugin')
     expect(manifest.dsh.profile.bundles).toContain('@deepseek-ai/dsh-web-app')
     await manager.applyRelease()
@@ -332,5 +345,51 @@ describe('desktop link-backend projections', () => {
     expect(existsSync(join(profile, '.dsh-module-fallback'))).toBe(false)
     expect(lstatSync(join(profile, 'node_modules', 'bridge'), { throwIfNoEntry: false })).toBeUndefined()
     expect(existsSync(join(target, 'package.json'))).toBe(true)
+  })
+
+  it('seeds newly bundled default plugins once into existing profiles', async () => {
+    const { manager } = setup()
+    const profile = manager.paths.profile
+    mkdirSync(profile, { recursive: true })
+    writeFileSync(join(profile, 'package.json'), JSON.stringify({
+      name: '@deepseek-ai/dsh-desktop-runtime',
+      private: true,
+      version: '0.0.0',
+      dsh: { profile: { bundles: ['@deepseek-ai/dsh-web-app', 'dsh-plugin-opc', 'dshmarket'] } },
+    }))
+    writeFileSync(join(profile, 'desktop-bundled-defaults.json'), JSON.stringify(['dshmarket']))
+
+    await manager.applyRelease()
+
+    const manifest = JSON.parse(readFileSync(join(profile, 'package.json'), 'utf8')) as {
+      dsh: { profile: { bundles: string[] } }
+    }
+    expect(manifest.dsh.profile.bundles).toEqual([
+      '@deepseek-ai/dsh-web-app',
+      'dsh-plugin-opc',
+      'dshmarket',
+      'dsh-connect-workbuddy',
+      'dsh-skills-manager',
+      'dsh-better-sidebar',
+      'dsh-free-search',
+      'dsh-browser-cdp',
+    ])
+    const seeded = JSON.parse(readFileSync(join(profile, 'desktop-bundled-defaults.json'), 'utf8')) as string[]
+    expect(seeded).toEqual([
+      'dshmarket',
+      'dsh-connect-workbuddy',
+      'dsh-skills-manager',
+      'dsh-better-sidebar',
+      'dsh-free-search',
+      'dsh-browser-cdp',
+    ])
+
+    manifest.dsh.profile.bundles = manifest.dsh.profile.bundles.filter(name => name !== 'dsh-free-search')
+    writeFileSync(join(profile, 'package.json'), JSON.stringify(manifest))
+    await manager.applyRelease()
+    const afterManualDisable = JSON.parse(readFileSync(join(profile, 'package.json'), 'utf8')) as {
+      dsh: { profile: { bundles: string[] } }
+    }
+    expect(afterManualDisable.dsh.profile.bundles).not.toContain('dsh-free-search')
   })
 })
