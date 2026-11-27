@@ -1,7 +1,21 @@
 .row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
   padding: 16px 0;
   color: var(--dsw-alias-label-primary);
   font-size: 14px;
   line-height: 22px;
   overflow-wrap: anywhere;
+}
+
+.changelogBody {
+  margin: 0;
+  max-height: 360px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--dsw-alias-label-secondary);
 }

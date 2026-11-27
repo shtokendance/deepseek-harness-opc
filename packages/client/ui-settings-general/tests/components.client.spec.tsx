@@ -250,7 +250,7 @@ describe('current version', () => {
     }
     render(<CurrentVersionRow {...kit} t={translate} />)
     expect(screen.getByText(expected)).toBeTruthy()
-    expect(screen.queryByRole('button')).toBeNull()
+    expect(screen.getByRole('button')).toBeTruthy()
   })
 
   it('omits the row when a partial build has no version metadata', () => {
@@ -432,4 +432,19 @@ it('labels uncertain settings saves without claiming they were not written', () 
 it('does not describe a saved selection that failed to apply as unsaved', () => {
   expect(zh['desktop.channel.result.apply']).toBe('设置保存异常')
   expect(en['desktop.channel.result.apply']).toBe('Settings save error')
+})
+
+it('opens a changelog modal from CurrentVersionRow', async () => {
+  vi.stubEnv('DSH_CLIENT_VERSION', '0.2.4')
+  const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(
+    JSON.stringify({ version: '0.2.4', release_notes: 'Added changelog dialog and sidebar OPC panel.' }),
+    { status: 200, headers: { 'Content-Type': 'application/json' } },
+  ))
+  render(<CurrentVersionRow {...kit} t={t} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Release notes' }))
+  await waitFor(() => {
+    expect(screen.getByRole('dialog')).toBeTruthy()
+    expect(screen.getByText('Added changelog dialog and sidebar OPC panel.')).toBeTruthy()
+  })
+  fetchSpy.mockRestore()
 })

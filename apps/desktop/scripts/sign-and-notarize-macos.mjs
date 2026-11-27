@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { closeSync, existsSync, mkdirSync, openSync, readdirSync, readSync, rmSync, statSync, symlinkSync } from 'node:fs'
+import { closeSync, existsSync, mkdirSync, openSync, readdirSync, readSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -70,7 +70,7 @@ function main() {
     throw new Error('Required env vars: DSH_DESKTOP_MACOS_SIGNING_IDENTITY, APPLE_API_KEY, APPLE_API_KEY_ID, APPLE_API_ISSUER')
   }
 
-  const entitlements = join(DESKTOP_ROOT, 'build', 'macos-entitlements.plist')
+  const entitlements = join(DESKTOP_ROOT, 'scripts', 'macos-entitlements.plist')
   const targetDir = join(DESKTOP_ROOT, '.desktop-build', 'targets', target)
   const appPath = process.env.WORKOPC_APP_PATH || join(targetDir, 'dist', arch === 'arm64' ? 'mac-arm64' : 'mac', 'WorkOPC.app')
   if (!existsSync(appPath)) {
@@ -79,6 +79,20 @@ function main() {
 
   const outDir = join(targetDir, 'signed-artifacts')
   mkdirSync(outDir, { recursive: true })
+
+  if (process.env.WORKOPC_AUTO_UPDATE !== '0') {
+    const channel = process.env.DSH_DESKTOP_UPDATE_CHANNEL || 'stable'
+    const updateUrl = process.env.WORKOPC_AUTO_UPDATE_URL || `https://aiwork.benlai.com/workopc/update/feeds/${target}/`
+    const appUpdateYml = [
+      'provider: generic',
+      `url: ${updateUrl}`,
+      `channel: ${channel}`,
+      'updaterCacheDirName: workopc-updater',
+      '',
+    ].join('\n')
+    writeFileSync(join(appPath, 'Contents', 'Resources', 'app-update.yml'), appUpdateYml, 'utf8')
+    console.log(`Embedded app-update.yml (${updateUrl}, channel=${channel})`)
+  }
 
   const { binaries, bundles } = collectSignTargets(appPath)
   console.log(`Signing ${binaries.length} Mach-O binaries and ${bundles.length} nested bundles...`)
