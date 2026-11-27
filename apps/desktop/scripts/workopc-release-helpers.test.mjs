@@ -5,6 +5,9 @@ import {
   inferArtifactKind,
   formatChineseChangelogFromCommits,
   loadEnvFileIfExists,
+  getNextSemver,
+  compareSemver,
+  normalizeTagName,
 } from './workopc-release-helpers.mjs'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
@@ -73,4 +76,14 @@ test('loadEnvFileIfExists parses KEY=VALUE without overwriting existing keys', (
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
+})
+
+test('getNextSemver and compareSemver handle stable and prerelease versions', () => {
+  assert.equal(getNextSemver('0.2.4'), '0.2.5')
+  assert.equal(getNextSemver('0.2.3-alpha.2'), '0.2.3-alpha.3')
+  assert.equal(compareSemver('0.2.5', '0.2.4') > 0, true)
+  assert.equal(compareSemver('0.2.4', '0.2.4-alpha.1') > 0, true)
+  assert.equal(compareSemver('0.2.4', '0.2.4'), 0)
+  assert.equal(normalizeTagName('0.2.5'), 'v0.2.5')
+  assert.equal(normalizeTagName('v0.2.5'), 'v0.2.5')
 })

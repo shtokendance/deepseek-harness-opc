@@ -68,7 +68,10 @@ done
 
 cd "$REPO_ROOT"
 
-if [[ "$NO_PULL" -eq 0 ]]; then
+PREPARE_ARGS=()
+if [[ "$NO_PULL" -eq 1 ]]; then
+  PREPARE_ARGS+=(--no-pull --no-push)
+else
   if [[ -n "$(git status --porcelain)" ]]; then
     echo "Working tree has uncommitted changes. Commit/stash them or pass --no-pull." >&2
     exit 1
@@ -77,51 +80,45 @@ if [[ "$NO_PULL" -eq 0 ]]; then
   git pull --ff-only origin release
 fi
 
-CURRENT_VERSION="$(node -e "console.log(JSON.parse(require('fs').readFileSync('package.json','utf8')).version)")"
-DEFAULT_NEXT_VERSION="$(node -e "
-const v = process.argv[1];
-const pre = v.match(/^(\d+\.\d+\.\d+-[A-Za-z0-9.-]*?)(\d+)$/);
-if (pre) { console.log(pre[1] + (Number(pre[2]) + 1)); process.exit(0); }
-const m = v.match(/^(\d+)\.(\d+)\.(\d+)$/);
-if (m) { console.log(m[1] + '.' + m[2] + '.' + (Number(m[3]) + 1)); process.exit(0); }
-console.log(v);
-" "$CURRENT_VERSION")"
+SUGGEST_JSON="$(node apps/desktop/scripts/prepare-workopc-release.mjs --suggest "${PREPARE_ARGS[@]}")"
+CURRENT_VERSION="$(node -e "const d=JSON.parse(process.argv[1]);console.log(d.currentPackageVersion)" "$SUGGEST_JSON")"
+LATEST_TAG="$(node -e "const d=JSON.parse(process.argv[1]);console.log(d.latestTag || '无')" "$SUGGEST_JSON")"
+DEFAULT_BUILD_VERSION="$(node -e "const d=JSON.parse(process.argv[1]);console.log(d.defaultBuildVersion)" "$SUGGEST_JSON")"
 
 if [[ -z "$TARGET_VERSION" ]]; then
   if [[ "$AUTO_YES" -eq 1 || ! -t 0 ]]; then
-    TARGET_VERSION="$DEFAULT_NEXT_VERSION"
+    TARGET_VERSION="$DEFAULT_BUILD_VERSION"
   else
-    read -r -p "Current version is $CURRENT_VERSION. Enter release version [$DEFAULT_NEXT_VERSION]: " INPUT_VERSION
-    TARGET_VERSION="${INPUT_VERSION:-$DEFAULT_NEXT_VERSION}"
+    echo "当前代码版本: $CURRENT_VERSION | 最新 Git Tag: $LATEST_TAG"
+    read -r -p "请输入要打包的版本或 Tag（直接回车默认 $DEFAULT_BUILD_VERSION）: " INPUT_VERSION
+    TARGET_VERSION="${INPUT_VERSION:-$DEFAULT_BUILD_VERSION}"
   fi
 fi
 
+TARGET_VERSION="${TARGET_VERSION#v}"
 if [[ ! "$TARGET_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
   echo "Invalid semver version: $TARGET_VERSION" >&2
   exit 1
 fi
 
-echo "==> Building WorkOPC $TARGET_VERSION (mac-$ARCH, channel=$CHANNEL)"
+OUT_DIR="$REPO_ROOT/apps/desktop/.desktop-build/release-local/$TARGET_VERSION"
+mkdir -p "$OUT_DIR"
 
-if [[ "$TARGET_VERSION" != "$CURRENT_VERSION" ]]; then
-  node -e "
-const fs = require('fs');
-const { globSync } = require('fs');
-const from = process.argv[1];
-const to = process.argv[2];
-const files = ['package.json', ...globSync('apps/*/package.json'), ...globSync('packages/*/*/package.json')];
-let count = 0;
-for (const f of files) {
-  const txt = fs.readFileSync(f, 'utf8');
-  const json = JSON.parse(txt);
-  if (json.version === from) {
-    fs.writeFileSync(f, txt.replace('\"version\": \"' + from + '\"', '\"version\": \"' + to + '\"'));
-    count++;
-  }
+echo "==> Preparing Git Tag v$TARGET_VERSION & changelog..."
+node apps/desktop/scripts/prepare-workopc-release.mjs --version "$TARGET_VERSION" --notes-out "$OUT_DIR/release-notes.md" "${PREPARE_ARGS[@]}"
+
+cleanup_checkout() {
+  if [[ "$NO_PULL" -eq 0 ]]; then
+    git -C "$REPO_ROOT" checkout release >/dev/null 2>&1 || true
+  fi
 }
-console.log('Updated', count, 'manifests to', to);
-" "$CURRENT_VERSION" "$TARGET_VERSION"
+trap cleanup_checkout EXIT
+
+if [[ "$NO_PULL" -eq 0 ]]; then
+  git checkout "v$TARGET_VERSION"
 fi
+
+echo "==> Building WorkOPC $TARGET_VERSION from tag v$TARGET_VERSION (mac-$ARCH, channel=$CHANNEL)"
 
 if [[ ! -f "native/system/darwin-$ARCH/bin/system.node" ]]; then
   pnpm run build:native-system
@@ -148,8 +145,6 @@ export APPLE_API_ISSUER="${APPLE_API_ISSUER:-222345b1-fc61-4bb4-bc1b-e538f0d8044
 node apps/desktop/scripts/sign-and-notarize-macos.mjs
 
 SIGNED_DIR="$REPO_ROOT/apps/desktop/.desktop-build/targets/mac-$ARCH/signed-artifacts"
-OUT_DIR="$REPO_ROOT/apps/desktop/.desktop-build/release-local/$TARGET_VERSION"
-mkdir -p "$OUT_DIR"
 cp -f "$SIGNED_DIR/WorkOPC-$TARGET_VERSION-mac-$ARCH.dmg" "$OUT_DIR/"
 cp -f "$SIGNED_DIR/WorkOPC-$TARGET_VERSION-mac-$ARCH.zip" "$OUT_DIR/"
 if [[ -f "$SIGNED_DIR/WorkOPC-$TARGET_VERSION-mac-$ARCH.zip.blockmap" ]]; then

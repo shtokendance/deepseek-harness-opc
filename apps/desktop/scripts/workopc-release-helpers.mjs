@@ -175,3 +175,36 @@ export function formatChineseChangelogFromCommits(subjects) {
   }
   return bullets.join('\n')
 }
+
+export function normalizeTagName(versionOrTag) {
+  const v = String(versionOrTag || '').trim()
+  if (!v) return ''
+  return v.startsWith('v') ? v : `v${v}`
+}
+
+export function getNextSemver(current) {
+  const v = String(current || '').trim().replace(/^v/u, '')
+  const pre = v.match(/^(\d+\.\d+\.\d+-[A-Za-z0-9.-]*?)(\d+)$/)
+  if (pre) return `${pre[1]}${Number(pre[2]) + 1}`
+  const rel = v.match(/^(\d+)\.(\d+)\.(\d+)$/)
+  if (rel) return `${rel[1]}.${rel[2]}.${Number(rel[3]) + 1}`
+  return v
+}
+
+function parseSemverParts(version) {
+  const clean = String(version || '').trim().replace(/^v/u, '')
+  const [core, pre = ''] = clean.split('-', 2)
+  const nums = core.split('.').map((n) => Number(n) || 0)
+  return { major: nums[0] || 0, minor: nums[1] || 0, patch: nums[2] || 0, pre }
+}
+
+export function compareSemver(a, b) {
+  const pa = parseSemverParts(a)
+  const pb = parseSemverParts(b)
+  if (pa.major !== pb.major) return pa.major - pb.major
+  if (pa.minor !== pb.minor) return pa.minor - pb.minor
+  if (pa.patch !== pb.patch) return pa.patch - pb.patch
+  if (!pa.pre && pb.pre) return 1
+  if (pa.pre && !pb.pre) return -1
+  return pa.pre.localeCompare(pb.pre)
+}
