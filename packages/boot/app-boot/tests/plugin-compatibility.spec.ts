@@ -18,11 +18,27 @@ afterEach(() => vi.restoreAllMocks())
 
 describe('dsh runtime version', () => {
   it('reads the exact version with a string path accepted by executable virtual filesystems', () => {
-    const { version: expected } = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string }
+    const manifest = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as {
+      version: string
+      dshUpstreamVersion?: string
+    }
+    const expected = manifest.dshUpstreamVersion ?? manifest.version
     const read = vi.spyOn(fs, 'readFileSync')
     expect(getDshRuntimeVersion()).toBe(expected)
     expect(semver.valid(expected)).not.toBeNull()
     expect(read).toHaveBeenCalledWith(fileURLToPath(new URL('../package.json', import.meta.url)), 'utf8')
+  })
+
+  it('prefers dshUpstreamVersion over desktop release version when present', () => {
+    vi.spyOn(fs, 'readFileSync').mockReturnValueOnce(JSON.stringify({
+      version: '0.2.7',
+      dshUpstreamVersion: '0.2.3-alpha.2',
+    }))
+    expect(getDshRuntimeVersion()).toBe('0.2.3-alpha.2')
+    vi.spyOn(fs, 'readFileSync').mockReturnValueOnce(JSON.stringify({
+      version: '0.2.7',
+    }))
+    expect(getDshRuntimeVersion()).toBe('0.2.7')
   })
 
   it.each([{}, { version: null }, { version: 1 }, { version: '' }, { version: 'not-semver' }])(

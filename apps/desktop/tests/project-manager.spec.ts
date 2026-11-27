@@ -48,11 +48,10 @@ describe('desktop external plugin profile', () => {
     await manager.applyRelease()
     const profile = manager.paths.profile
     const initialManifest = JSON.parse(readFileSync(join(profile, 'package.json'), 'utf8'))
-    expect(initialManifest.dsh.profile.bundles.slice(-7)).toEqual([
+    expect(initialManifest.dsh.profile.bundles.slice(-6)).toEqual([
       'dsh-plugin-opc',
       'dshmarket',
       'dsh-connect-workbuddy',
-      'dsh-skills-manager',
       'dsh-better-sidebar',
       'dsh-free-search',
       'dsh-browser-cdp',
@@ -133,7 +132,6 @@ describe('desktop external plugin profile', () => {
     expect(manifest.dsh.profile.bundles).not.toContain('dsh-plugin-opc')
     expect(manifest.dsh.profile.bundles).not.toContain('dshmarket')
     expect(manifest.dsh.profile.bundles).not.toContain('dsh-connect-workbuddy')
-    expect(manifest.dsh.profile.bundles).not.toContain('dsh-skills-manager')
     expect(manifest.dsh.profile.bundles).not.toContain('dsh-better-sidebar')
     expect(manifest.dsh.profile.bundles).not.toContain('dsh-free-search')
     expect(manifest.dsh.profile.bundles).not.toContain('dsh-browser-cdp')
@@ -369,7 +367,6 @@ describe('desktop link-backend projections', () => {
       'dsh-plugin-opc',
       'dshmarket',
       'dsh-connect-workbuddy',
-      'dsh-skills-manager',
       'dsh-better-sidebar',
       'dsh-free-search',
       'dsh-browser-cdp',
@@ -378,7 +375,6 @@ describe('desktop link-backend projections', () => {
     expect(seeded).toEqual([
       'dshmarket',
       'dsh-connect-workbuddy',
-      'dsh-skills-manager',
       'dsh-better-sidebar',
       'dsh-free-search',
       'dsh-browser-cdp',

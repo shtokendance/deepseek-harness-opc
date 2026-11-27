@@ -45,7 +45,12 @@ export function getDshRuntimeVersion(): string {
   // The executable's virtual filesystem intercepts string paths, not URL arguments.
   const filename = fileURLToPath(new URL('../package.json', import.meta.url))
   const manifest = objectOf(JSON.parse(fs.readFileSync(filename, 'utf8')), 'app-boot package.json')
-  return runtimeVersionOf(Object.hasOwn(manifest, 'version') ? manifest.version : undefined)
+  const raw = Object.hasOwn(manifest, 'dshUpstreamVersion')
+    ? manifest.dshUpstreamVersion
+    : Object.hasOwn(manifest, 'version')
+      ? manifest.version
+      : undefined
+  return runtimeVersionOf(raw)
 }
 
 function satisfies(runtimeVersion: string, range: string): boolean {
