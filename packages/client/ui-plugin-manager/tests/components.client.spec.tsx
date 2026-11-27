@@ -3137,8 +3137,8 @@ describe('registry versions and updates', () => {
 
   it('shows pending restart notice in VersionSection even after update dialog is closed and versions are up to date', () => {
     const { navigation } = renderTab({
-      packages: [updatable({ version: '0.17.0' })],
-      versions: { 'dsh-better-sidebar': listed([], '0.17.0') },
+      packages: [{ ...updatable(), version: '0.17.0' }],
+      versions: { 'dsh-better-sidebar': listed([]) },
       pendingRestart: { 'dsh-better-sidebar': { version: '0.17.0', reason: 'no-hmr' } },
     })
     open(navigation)
