@@ -145,6 +145,13 @@ try {
         pnpm install --frozen-lockfile
     }
 
+    $cuaWinExe = Join-Path $RepoRoot 'packages\experimental\cua-windows\native\bin\win-x64\dsh-cua-windows.exe'
+    if (-not (Test-Path -LiteralPath $cuaWinExe)) {
+        Invoke-Checked 'Building Windows Computer Use native helper (win-x64)' {
+            pnpm --dir packages/experimental/cua-windows run build:native:x64
+        }
+    }
+
     Invoke-Checked "Running preflight check (--check --build-version $targetVersion)" {
         pnpm run package:desktop:win:x64:no-sign --check --build-version $targetVersion
     }
