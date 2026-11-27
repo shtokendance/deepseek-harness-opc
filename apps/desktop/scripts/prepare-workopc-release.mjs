@@ -38,9 +38,17 @@ function parseArgs(argv) {
 }
 
 function runGit(args, opts = {}) {
+  const pathParts = [
+    dirname(process.execPath),
+    process.env.PATH,
+    '/opt/homebrew/bin',
+    '/usr/local/bin',
+    process.env.HOME ? `${process.env.HOME}/.local/share/pnpm` : '',
+  ].filter(Boolean)
   return execFileSync('git', args, {
     cwd: REPO_ROOT,
     encoding: 'utf8',
+    env: { ...process.env, PATH: pathParts.join(':') },
     stdio: opts.inherit ? 'inherit' : ['ignore', 'pipe', 'pipe'],
   })?.trim?.() || ''
 }
