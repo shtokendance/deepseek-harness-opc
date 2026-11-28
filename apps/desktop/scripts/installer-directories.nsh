@@ -175,6 +175,14 @@ Function dshPromoteDirectories
   SetOutPath $PLUGINSDIR
   ClearErrors
   ${If} ${FileExists} "$dshFinalDirectory\*.*"
+    !ifmacrodef customInstallerStopBundledComputerUse
+      !insertmacro customInstallerStopBundledComputerUse "$dshFinalDirectory"
+      ${If} ${Errors}
+        Call dshRollbackDirectories
+        SetErrors
+        Return
+      ${EndIf}
+    !endif
     StrCpy $dshDirectorySource $dshFinalDirectory
     StrCpy $dshDirectoryDestination $dshOldDirectory
     !insertmacro dshDirectoryOperation "$dshDirectorySource" "$dshDirectoryDestination" $dshDirectoryError "backup"

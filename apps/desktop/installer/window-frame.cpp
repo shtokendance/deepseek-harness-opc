@@ -33,6 +33,8 @@ static HRESULT ApplyInstallerDwmFrame(HWND window) {
 #include "extract-report.h"
 #include "directory-report.h"
 #include "uninstall-data.h"
+
+extern "C" __declspec(dllexport) DWORD __cdecl InstallerStopBundledComputerUse(LPCWSTR directory);
 #include "uninstall-report.h"
 
 using namespace Gdiplus;
@@ -96,34 +98,74 @@ extern "C" __declspec(dllexport) DWORD __cdecl UninstallRemoveEmptyParents(LPCWS
 
 // Match the affected executable, not another user's or directory's same-named application.
 // Returns 0 while running, 1 when absent, and -1 if the process list cannot be read.
-extern "C" __declspec(dllexport) int __cdecl InstallerFindProcess(LPCWSTR executable) {
+static bool MatchesProcessImage(HANDLE process, LPCWSTR expected) {
+    WCHAR path[32768];
+    DWORD count = ARRAYSIZE(path);
+    return QueryFullProcessImageNameW(process, 0, path, &count) && _wcsicmp(path, expected) == 0;
+}
+
+static DWORD StopProcessAndWait(HANDLE process) {
+    if (WaitForSingleObject(process, 0) == WAIT_OBJECT_0) return ERROR_SUCCESS;
+    if (!TerminateProcess(process, ERROR_CANCELLED)) {
+        const DWORD error = GetLastError();
+        return WaitForSingleObject(process, 0) == WAIT_OBJECT_0 ? ERROR_SUCCESS : error;
+    }
+    const DWORD result = WaitForSingleObject(process, 5000);
+    if (result == WAIT_OBJECT_0) return ERROR_SUCCESS;
+    return result == WAIT_TIMEOUT ? ERROR_TIMEOUT : GetLastError();
+}
+
+// Compare and stop through the same handle, so PID reuse cannot terminate a different image.
+static DWORD InspectInstalledProcess(LPCWSTR executable, bool stop, bool& found) {
     WCHAR target[32768];
     DWORD length = GetLongPathNameW(executable, target, ARRAYSIZE(target));
     LPCWSTR expected = length > 0 && length < ARRAYSIZE(target) ? target : executable;
     LPCWSTR filename = wcsrchr(expected, L'\\');
     filename = filename ? filename + 1 : expected;
-    HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-    if (snapshot == INVALID_HANDLE_VALUE) return -1;
+    InstallerHandle snapshot(CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0));
+    if (snapshot.value == INVALID_HANDLE_VALUE) return GetLastError();
     PROCESSENTRY32W entry = {};
     entry.dwSize = sizeof(entry);
-    int result = 1;
-    BOOL present = Process32FirstW(snapshot, &entry);
-    while (present) {
+    const DWORD access = PROCESS_QUERY_LIMITED_INFORMATION | (stop ? PROCESS_TERMINATE | SYNCHRONIZE : 0);
+    for (BOOL present = Process32FirstW(snapshot.value, &entry); present; present = Process32NextW(snapshot.value, &entry)) {
         if (_wcsicmp(entry.szExeFile, filename) == 0) {
-            HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, entry.th32ProcessID);
-            if (process) {
-                WCHAR path[32768];
-                DWORD count = ARRAYSIZE(path);
-                if (QueryFullProcessImageNameW(process, 0, path, &count) && _wcsicmp(path, expected) == 0) result = 0;
-                CloseHandle(process);
-                if (result == 0) break;
+            InstallerHandle process(OpenProcess(access, FALSE, entry.th32ProcessID));
+            if (process.value && MatchesProcessImage(process.value, expected)) {
+                found = true;
+                if (!stop) return ERROR_SUCCESS;
+                if (const DWORD error = StopProcessAndWait(process.value)) return error;
+            } else if (!process.value && stop) {
+                const DWORD error = GetLastError();
+                InstallerHandle query(OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, entry.th32ProcessID));
+                if (query.value && MatchesProcessImage(query.value, expected)) return error;
             }
         }
-        present = Process32NextW(snapshot, &entry);
     }
-    if (!present && GetLastError() != ERROR_NO_MORE_FILES) result = -1;
-    CloseHandle(snapshot);
-    return result;
+    const DWORD error = GetLastError();
+    return error == ERROR_NO_MORE_FILES ? ERROR_SUCCESS : error;
+}
+
+extern "C" __declspec(dllexport) int __cdecl InstallerFindProcess(LPCWSTR executable) {
+    bool found = false;
+    if (InspectInstalledProcess(executable, false, found)) return -1;
+    return found ? 0 : 1;
+}
+
+static DWORD StopBundledComputerUse(LPCWSTR directory) {
+    std::wstring root;
+    if (!uninstall_data::Normalize(directory, root)) return ERROR_INVALID_NAME;
+    root += L"\\resources\\app.asar.unpacked\\dsh\\node_modules\\@deepseek-ai\\dsh-cua-windows\\native\\bin\\";
+    for (const LPCWSTR architecture : {L"win-x64", L"win-arm64"}) {
+        const std::wstring helper = root + architecture + L"\\dsh-cua-windows.exe";
+        bool found = false;
+        if (const DWORD error = InspectInstalledProcess(helper.c_str(), true, found)) return error;
+    }
+    return ERROR_SUCCESS;
+}
+
+extern "C" __declspec(dllexport) DWORD __cdecl InstallerStopBundledComputerUse(LPCWSTR directory) {
+    try { return StopBundledComputerUse(directory); }
+    catch (const std::bad_alloc&) { return ERROR_NOT_ENOUGH_MEMORY; }
 }
 
 struct ProgressPage {

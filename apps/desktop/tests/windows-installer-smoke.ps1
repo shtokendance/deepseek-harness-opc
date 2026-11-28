@@ -13,6 +13,7 @@ $appPath = Join-Path $installPath ($ProductName + '.exe')
 $uninstaller = Join-Path $installPath ('Uninstall ' + $ProductName + '.exe')
 $processes = [Collections.Generic.List[Diagnostics.Process]]::new()
 $results = [Collections.Generic.List[string]]::new()
+$uninstalled = $false
 $expected = Get-Content (Join-Path $PSScriptRoot 'expected/windows-installer.json') -Raw | ConvertFrom-Json
 $resource = Get-Content (Join-Path $PSScriptRoot "../installer/locales/$Language.json") -Encoding UTF8 -Raw | ConvertFrom-Json
 $localizedCopy = @{ $Language = $resource.strings }
@@ -136,6 +137,16 @@ function Run-Silent([string]$Arguments, [int]$Code) {
     $processes.Add($process)
     if (-not $process.WaitForExit(60000)) { throw 'Silent setup did not exit' }
     if ($process.ExitCode -ne $Code) { throw "Silent setup returned $($process.ExitCode), expected $Code" }
+}
+function Start-ComputerUseFixture([string]$Root) {
+    $bin = Join-Path $Root 'resources\app.asar.unpacked\dsh\node_modules\@deepseek-ai\dsh-cua-windows\native\bin\win-x64'
+    New-Item -ItemType Directory -Path $bin -Force | Out-Null
+    $helper = Join-Path $bin 'dsh-cua-windows.exe'
+    Copy-Item -LiteralPath $appPath -Destination $helper
+    $worker = Start-Process -FilePath $helper -WorkingDirectory $bin -PassThru -WindowStyle Hidden
+    $processes.Add($worker)
+    [void](Wait-Control $worker 'Installer test application is running.' -Dialog)
+    return $worker
 }
 try {
     $process = Start-Setup light
@@ -275,9 +286,21 @@ try {
     } finally { $lock.Dispose() }
     $results.Add('automatic-update-shows-native-progress-and-directory-error')
 
+    $updateHelper = Start-ComputerUseFixture $installPath
+    $otherHelper = Start-ComputerUseFixture $otherPath
     $process = Start-Process -FilePath $Installer -ArgumentList '/S --updated --force-run' -PassThru -WindowStyle Normal
     $processes.Add($process)
-    if (-not $process.WaitForExit(30000) -or $process.ExitCode -ne 0) { throw 'Automatic update required manual completion' }
+    $timer = [Diagnostics.Stopwatch]::StartNew()
+    while (-not $process.WaitForExit(100)) {
+        if ([InstallerCapture]::FindText($process.Id, $copy.INSTALLER_EXTRACT_COPY) -ne [IntPtr]::Zero) {
+            throw 'Automatic update could not replace the installation with its Computer Use helper running'
+        }
+        if ($timer.Elapsed.TotalSeconds -gt 30) { throw 'Automatic update required manual completion' }
+    }
+    if ($process.ExitCode -ne 0 -or -not $updateHelper.HasExited -or $otherHelper.HasExited) {
+        throw 'Automatic update did not stop only the Computer Use helper in its own installation'
+    }
+    $results.Add('automatic-update-stops-only-its-own-computer-use-helper')
     $app = Get-Process -Name $ProductName -ErrorAction SilentlyContinue
     if (-not $app -or $app.Path -ne $appPath) { throw 'Automatic update did not restart the app' }
     $processes.Add($app)
@@ -291,6 +314,21 @@ try {
     Run-Silent ('/S /D=' + $foreign) 2
     if ((Get-Content -LiteralPath (Join-Path $foreign 'keep.txt')) -ne 'preserved') { throw 'Foreign directory changed' }
     $results.Add('invalid-destination-rejection')
+
+    $uninstallHelper = Start-ComputerUseFixture $installPath
+    $uninstallHelperPath = $uninstallHelper.Path
+    $process = Start-Process -FilePath $uninstaller -ArgumentList '/S' -PassThru -WindowStyle Hidden
+    $processes.Add($process)
+    if (-not $process.WaitForExit(30000) -or $process.ExitCode -ne 0 -or -not $uninstallHelper.WaitForExit(5000) -or $otherHelper.HasExited) {
+        throw 'Uninstall did not stop only the Computer Use helper in its own installation'
+    }
+    $timer = [Diagnostics.Stopwatch]::StartNew()
+    while (Test-Path -LiteralPath $uninstallHelperPath) {
+        if ($timer.Elapsed.TotalSeconds -gt 15) { throw 'Uninstall left its Computer Use executable behind' }
+        Start-Sleep -Milliseconds 25
+    }
+    $uninstalled = $true
+    $results.Add('uninstall-stops-and-removes-only-its-own-computer-use-helper')
 } catch {
     Write-Output "Installer check failed: $_"
     throw
@@ -299,7 +337,7 @@ try {
         if (-not $process.HasExited) { $process.Kill(); $process.WaitForExit() }
         $process.Dispose()
     }
-    if (Test-Path -LiteralPath $uninstaller) {
+    if (-not $uninstalled -and (Test-Path -LiteralPath $uninstaller)) {
         $uninstallProcess = Start-Process -FilePath $uninstaller -ArgumentList '/S' -PassThru -WindowStyle Hidden
         if (-not $uninstallProcess.WaitForExit(60000)) { $uninstallProcess.Kill(); $uninstallProcess.WaitForExit(); throw 'Test uninstaller timed out' }
         $timer = [Diagnostics.Stopwatch]::StartNew()

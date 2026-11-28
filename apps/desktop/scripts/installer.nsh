@@ -216,6 +216,16 @@ ManifestDPIAware true
   !endif
 !macroend
 
+!macro customInstallerStopBundledComputerUse Directory
+  System::Call '$PLUGINSDIR\window-frame.dll::InstallerStopBundledComputerUse(w "${Directory}") i.r0 ?c'
+  ${If} $0 != 0
+    MessageBox MB_OK|MB_ICONEXCLAMATION "$(INSTALLER_DIRECTORY_FAILED)$\r$\n$\r$\ndsh-cua-windows.exe: $0$\r$\n${Directory}" /SD IDOK
+    SetErrors
+  ${Else}
+    ClearErrors
+  ${EndIf}
+!macroend
+
 !macro customInstallerDirectoryFailed
   Push $0
   Push $1

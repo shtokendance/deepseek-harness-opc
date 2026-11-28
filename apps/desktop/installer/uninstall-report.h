@@ -219,6 +219,8 @@ inline DWORD Payload(Session& session, LPCWSTR directory, LPCWSTR executable, LP
     } else if (attributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)) error = ERROR_ACCESS_DENIED;
     else error = uninstall_data::Unlink(L"\\\\?\\" + main, attributes);
     if (error) { session.mainBlocked = true; Add(session, L"Remove main executable; remaining cleanup not executed", main.c_str(), error); return error; }
+    error = InstallerStopBundledComputerUse(directory);
+    if (error) { Add(session, L"Stop bundled dsh-cua-windows.exe; remaining payload cleanup not executed", directory, error); return error; }
     WIN32_FIND_DATAW entry{};
     HANDLE search = FindFirstFileW((std::wstring(L"\\\\?\\") + directory + L"\\*").c_str(), &entry);
     if (search == INVALID_HANDLE_VALUE) { error = GetLastError(); Add(session, L"Enumerate payload; result incomplete", directory, error); return error; }
