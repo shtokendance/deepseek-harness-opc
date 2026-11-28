@@ -1,4 +1,5 @@
 Var InstallerProgressWindow
+Var InstallerAutoRestart
 
 Function InstallerGuiInit
     HideWindow
@@ -55,6 +56,9 @@ FunctionEnd
 
 Function InstallerProgressShow
     StrCpy $InstallerPhase "installing"
+    ${If} $InstallerAutoRestart == 1
+        System::Call 'user32::SetPropW(p $HWNDPARENT, w "HarnessInstaller.AutoRestart", p 1)'
+    ${EndIf}
     ; Only the stock worker executes installation; this overlay runs on the UI thread.
     ShowWindow $mui.InstFilesPage 0
     StrCpy $0 0

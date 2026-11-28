@@ -57,6 +57,15 @@ function Start-Setup([string]$Theme, [string]$Path = $installPath) {
 function Click-Control([Diagnostics.Process]$Process, [string]$Text) {
     [InstallerCapture]::Click((Wait-Control $Process $Text))
 }
+function Find-DirectoryFailureDialog([Diagnostics.Process]$Process) {
+    $copyButton = Wait-Control $Process $copy.INSTALLER_EXTRACT_COPY
+    $dialog = [InstallerCapture]::TopLevel($copyButton)
+    $automation = [Windows.Automation.AutomationElement]::FromHandle($dialog)
+    $heading = $automation.FindFirst([Windows.Automation.TreeScope]::Descendants,
+        [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty, $copy.INSTALLER_DIRECTORY_FAILED))
+    if ($null -eq $heading) { throw 'Directory failure dialog lacks its localized heading' }
+    return $dialog
+}
 function Dismiss([Diagnostics.Process]$Process, [string]$Text) {
     $control = Wait-Control $Process $Text -Dialog
     $dialog = [InstallerCapture]::TopLevel($control)
@@ -169,12 +178,7 @@ try {
     try {
         $process = Start-Setup light
         Click-Control $process $copy.INSTALLER_INSTALL
-        $copyButton = Wait-Control $process $copy.INSTALLER_EXTRACT_COPY
-        $dialog = [InstallerCapture]::TopLevel($copyButton)
-        $automation = [Windows.Automation.AutomationElement]::FromHandle($dialog)
-        $heading = $automation.FindFirst([Windows.Automation.TreeScope]::Descendants,
-            [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty, $copy.INSTALLER_DIRECTORY_FAILED))
-        if ($null -eq $heading) { throw 'Directory failure dialog lacks its localized heading' }
+        $dialog = Find-DirectoryFailureDialog $process
         [void][InstallerCapture]::SaveNative($dialog, (Join-Path $OutputDirectory 'directory-failure.png'), $false)
         [void][InstallerCapture]::SendMessage($dialog, (0x400 + 102), [IntPtr]1, [IntPtr]::Zero)
         if (-not $process.WaitForExit(10000) -or $process.ExitCode -ne 2 -or -not (Test-Path -LiteralPath $appPath)) {
@@ -253,6 +257,33 @@ try {
     $registration = Get-ItemProperty ('HKCU:\Software\' + $RegistryKey)
     if ($registration.InstallLocation.TrimEnd('\') -ne $installPath) { throw 'Silent update changed InstallLocation' }
     $results.Add('silent-update-retains-directory-and-ignores-unrelated-process')
+
+    $lockedPath = Join-Path $installPath 'upgrade-lock.txt'
+    [IO.File]::WriteAllText($lockedPath, 'old installation')
+    $lock = [IO.File]::Open($lockedPath, 'Open', 'Read', 'Read')
+    try {
+        $process = Start-Process -FilePath $Installer -ArgumentList '/S --updated --force-run' -PassThru -WindowStyle Normal
+        $processes.Add($process)
+        $dialog = Find-DirectoryFailureDialog $process
+        if (-not [InstallerCapture]::VisibleText($process.Id).Contains('HarnessInstallerProgress')) {
+            throw 'Automatic update failed without showing native installation progress'
+        }
+        [void][InstallerCapture]::SaveNative($dialog, (Join-Path $OutputDirectory 'automatic-update-directory-failure.png'), $false)
+        [void][InstallerCapture]::SendMessage($dialog, (0x400 + 102), [IntPtr]1, [IntPtr]::Zero)
+        if (-not $process.WaitForExit(10000) -or $process.ExitCode -ne 2) { throw 'Failed automatic update did not exit with code 2' }
+        if ([IO.File]::ReadAllText($lockedPath) -ne 'old installation') { throw 'Failed automatic update changed the old installation' }
+    } finally { $lock.Dispose() }
+    $results.Add('automatic-update-shows-native-progress-and-directory-error')
+
+    $process = Start-Process -FilePath $Installer -ArgumentList '/S --updated --force-run' -PassThru -WindowStyle Normal
+    $processes.Add($process)
+    if (-not $process.WaitForExit(30000) -or $process.ExitCode -ne 0) { throw 'Automatic update required manual completion' }
+    $app = Get-Process -Name $ProductName -ErrorAction SilentlyContinue
+    if (-not $app -or $app.Path -ne $appPath) { throw 'Automatic update did not restart the app' }
+    $processes.Add($app)
+    Dismiss $app 'Installer test application is running.'
+    if (-not $app.WaitForExit(10000)) { throw 'Test application did not exit' }
+    $results.Add('automatic-update-restarts-after-success')
     Run-Silent ('/S /allusers /D=' + $installPath) 2
     $foreign = Join-Path $OutputDirectory 'Foreign App'
     New-Item -ItemType Directory -Path $foreign | Out-Null

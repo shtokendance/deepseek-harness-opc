@@ -313,6 +313,7 @@ static LRESULT CALLBACK ProgressProc(HWND window, UINT message, WPARAM wparam, L
             // A covered window may not have painted its final frame on the last tick.
             UpdateWindow(window);
             RevealFinish(window, *page);
+            if (GetPropW(GetParent(window), L"HarnessInstaller.AutoRestart")) RequestFinish(window, *page, true);
         }
         return 0;
     }

@@ -42,7 +42,7 @@ int main() {
         progress.Advance(4, 0, now + 600);
         progress.Advance(4, 0, now + 1000000);
         progress.Tick(now + 1000250);
-        assert(progress.value < 100);
+        assert(progress.value == 98);
         assert(progress.CaptionStage() == 4);
     }
 

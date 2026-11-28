@@ -1,5 +1,4 @@
 !include "LogicLib.nsh"
-!include "${__FILEDIR__}\restart-banner.nsh"
 !include "FileFunc.nsh"
 !define INSTALLER_SOURCE_DIR "${__FILEDIR__}\..\installer"
 !define /ifndef INSTALLER_BUILD_DIR "${__FILEDIR__}\..\.desktop-build\targets\win-x64\installer-ui"
@@ -29,6 +28,18 @@ ManifestDPIAware true
     FunctionEnd
   !endif
 !macroend
+
+!ifndef BUILD_UNINSTALLER
+  !macro preInit
+    ; Installed Desktop versions pass /S with both flags for user-approved updates.
+    ${If} ${Silent}
+    ${AndIf} ${isUpdated}
+    ${AndIf} ${isForceRun}
+      StrCpy $InstallerAutoRestart 1
+      SetSilent normal
+    ${EndIf}
+  !macroend
+!endif
 
 !macro customInit
   ${If} ${isForAllUsers}
@@ -67,11 +78,6 @@ ManifestDPIAware true
   File "/oname=$PLUGINSDIR\brand-dark.bmp" "${INSTALLER_BUILD_DIR}\brand-dark.bmp"
   File "/oname=$PLUGINSDIR\brand-dark-2x.bmp" "${INSTALLER_BUILD_DIR}\brand-dark-2x.bmp"
   File "/oname=$PLUGINSDIR\window-frame.dll" "${INSTALLER_BUILD_DIR}\window-frame.dll"
-  ${If} ${Silent}
-  ${AndIf} ${isUpdated}
-  ${AndIf} ${isForceRun}
-    !insertmacro ShowRestartBanner
-  ${EndIf}
   Call InstallerCheckAppRunning
   ${If} ${Silent}
     Call InstallerPreflight
@@ -138,8 +144,7 @@ ManifestDPIAware true
   StrCpy $R1 "$R0"
 !macroend
 
-; The report outlives $PLUGINSDIR so a user can send it; silent installs keep only the file. The updater cache
-; directory is never an installation target and leaves with the application on uninstall.
+; Reports persist in the updater cache so users can share them after the installer exits.
 ; The directory smoke fixture predefines DSH_INSTALLER_LOG_DIR to keep reports inside its scratch tree.
 !ifndef DSH_INSTALLER_LOG_DIR
   !define DSH_INSTALLER_LOG_DIR "$LOCALAPPDATA\${DSH_UPDATER_CACHE_NAME}\installer-logs"
@@ -254,11 +259,6 @@ ManifestDPIAware true
   ${EndIf}
   !insertmacro InstallerPublishStage 4
   !insertmacro dshFinishDirectories
-  ${If} $RestartStatusJob != ""
-  ${AndIf} $RestartStatusJob != 0
-    System::Call 'kernel32::CloseHandle(p $RestartStatusJob)'
-    StrCpy $RestartStatusJob 0
-  ${EndIf}
   ; Standard uninstall-entry metadata read by inventory tools; the upstream template records it only under its private key.
   WriteRegStr SHELL_CONTEXT "${UNINSTALL_REGISTRY_KEY}" InstallLocation "$INSTDIR"
   ${If} $0 == 1
