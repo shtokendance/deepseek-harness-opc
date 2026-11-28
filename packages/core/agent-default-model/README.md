@@ -42,8 +42,25 @@ The composition requires a provider and model. Consumers read the live reference
 |---|---|---|
 | `provider` | required | Registered provider route for fresh agents |
 | `model` | required | Provider-owned model id for fresh agents |
+| `preferred` | omitted | `{ provider, name }` catalog entry that outranks the pair above while its provider advertises it |
 
 The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-agent-default-model) lists every accepted field. `reasoningEffort` is optional; saving a selection without it removes that field from the profile’s complete config override.
+
+### Prefer a catalog entry
+
+`preferred` names a catalog entry by display name instead of model id, which suits a provider that assigns ids per account and therefore cannot be written into a shipped composition. While `preferred.provider` is registered and advertises a model whose name matches (after Unicode compatibility folding and whitespace removal), `currentSelection()` returns that model id. The preference yields whenever the provider is unregistered, its catalog is empty, or no entry matches, so the configured `provider`/`model` pair stays the fallback rather than a hard dependency.
+
+`saveSelection()` writes a complete `provider`/`model` selection and drops `preferred`, so an explicit choice by the user always outranks the deployment preference. Set `preferred` in the composition, never through the settings form, which hides the field.
+
+```yaml
+- name: '@deepseek-ai/dsh-agent-default-model'
+  config:
+    provider: deepseek-official
+    model: deepseek-flash
+    preferred:
+      provider: benlai-ai
+      name: 'Benlai/DeepSeek-V4.1-Flash（全局推荐）'
+```
 
 ### Read and change the default
 

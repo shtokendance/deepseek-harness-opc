@@ -25,7 +25,10 @@ type DefaultPresetProps = PermissionProps & InjectFace<{
 type PersistentPtcProps = PermissionProps & { setPersistentPtc: () => Promise<boolean> }
 
 /** The detail page owns explicit preset and execution-mode settings. */
-export type PermissionPanelProps = PermissionProps & DefaultPresetProps & PersistentPtcProps
+export type PermissionPanelProps = PermissionProps & DefaultPresetProps & PersistentPtcProps & {
+  /** Request each missing macOS privilege once, without a click; the launcher opts in. */
+  guideSystemPermissions?: boolean
+}
 
 function DefaultPresetSetting(props: DefaultPresetProps) {
   const preset = props.useCuaDefaultPreset(value => value)
@@ -167,9 +170,9 @@ function systemReady(system: CuaSystemPermissionState): boolean {
   }
 }
 
-/** @param props Host observation and explicit user actions. @returns Permission controls without automatic system prompts. */
+/** @param props Host observation and user actions. @returns Permission controls and optional native guidance. */
 export function PermissionPanel(props: PermissionPanelProps) {
-  const { t, refresh } = props
+  const { t, refresh, requestGuided, guideSystemPermissions } = props
   const state = props.useCuaPermissions(value => value)
   const observed = state.system.value
   const windows = observed?.platform === 'windows' || (observed === null && state.windowsProvider.value === true)
@@ -185,6 +188,13 @@ export function PermissionPanel(props: PermissionPanelProps) {
     window.addEventListener('focus', refresh)
     return () => { window.removeEventListener('focus', refresh) }
   }, [refresh])
+  useEffect(() => {
+    // Accessibility precedes screen recording, because the first native prompt needs no capture.
+    if (!guideSystemPermissions || busy || state.system.error !== null || mac === null) return
+    const next = !mac.accessibility ? 'accessibility' : !mac.screenRecording ? 'screenRecording' : undefined
+    if (next === undefined) return
+    requestGuided(next)
+  }, [busy, guideSystemPermissions, mac, requestGuided, state.system.error])
   return <div className={css.panels} data-cua-settings aria-busy={transitioning || state.busy || loading}>
     <section className={css.panel} aria-label={t('title')}>
       <div className={css.guidance} data-cua-guidance>

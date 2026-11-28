@@ -429,3 +429,22 @@ it('reads the current Client language for each permission action', async () => {
   await vi.waitFor(() => { expect(f.controller.state.getSnapshot().busy).toBe(false) })
   expect(f.actions.openSettings).toHaveBeenLastCalledWith('screenRecording', 'en')
 })
+
+it('requests each guided privilege once while leaving the explicit request repeatable', async () => {
+  const f = fixture()
+  f.face.requestGuided('accessibility')
+  await vi.waitFor(() => { expect(f.controller.state.getSnapshot().busy).toBe(false) })
+  expect(f.actions.requestPermission.mock.calls).toEqual([['accessibility', 'zh']])
+  // Repeating guidance for the same privilege, or for a privilege still missing, stays silent.
+  f.face.requestGuided('accessibility')
+  f.face.requestGuided('screenRecording')
+  await vi.waitFor(() => { expect(f.controller.state.getSnapshot().busy).toBe(false) })
+  expect(f.actions.requestPermission.mock.calls).toEqual([['accessibility', 'zh'], ['screenRecording', 'zh']])
+  f.face.requestGuided('screenRecording')
+  await vi.waitFor(() => { expect(f.controller.state.getSnapshot().busy).toBe(false) })
+  expect(f.actions.requestPermission).toHaveBeenCalledTimes(2)
+  // A click after a refused prompt still reaches the native request.
+  f.face.request('screenRecording')
+  await vi.waitFor(() => { expect(f.controller.state.getSnapshot().busy).toBe(false) })
+  expect(f.actions.requestPermission).toHaveBeenCalledTimes(3)
+})

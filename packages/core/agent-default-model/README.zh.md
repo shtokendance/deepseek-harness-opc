@@ -42,8 +42,25 @@ kind: "package-reference"
 |---|---|---|
 | `provider` | 必填 | 新 agent 使用的已注册提供方路由 |
 | `model` | 必填 | 新 agent 使用的、由提供方持有的模型 id |
+| `preferred` | 省略 | `{ provider, name }` 目录条目；此提供方在架且有对应模型时，优于此处的 `provider` 与 `model` |
 
 生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-agent-default-model) 列出所有接受的字段。`reasoningEffort` 是可选的；保存不含此字段的选择，会从 profile 的完整配置覆盖中移除此字段。
+
+### 优先使用某个目录条目
+
+`preferred` 按显示名称（而不是模型 id）指定目录条目，适用于按账号下发模型 id 的提供方——这类 id 无法写进随包发布的组合。当 `preferred.provider` 已注册、且该提供方在架模型中有一项名称匹配（先做 Unicode 兼容折叠，再移除空白）时，`currentSelection()` 返回该模型的 id。提供方未注册、目录为空或没有条目匹配时，此项偏好让位，配置的 `provider`/`model` 仍是兜底，而不是硬依赖。
+
+`saveSelection()` 写入完整的 `provider`/`model` 选择并移除 `preferred`，因此用户明确的选择始终优先于部署偏好。`preferred` 在组合中设置，不要经设置表单设置——该字段在表单中隐藏。
+
+```yaml
+- name: '@deepseek-ai/dsh-agent-default-model'
+  config:
+    provider: deepseek-official
+    model: deepseek-flash
+    preferred:
+      provider: benlai-ai
+      name: 'Benlai/DeepSeek-V4.1-Flash（全局推荐）'
+```
 
 ### 读取与更改默认值
 

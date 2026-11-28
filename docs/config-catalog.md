@@ -61,7 +61,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-agent-default-model`
 
 - `refs`: `Volatile` (`@deepseek-ai/cordis`)
-- `source`: [`packages/core/agent-default-model/src/index.ts:25`](../packages/core/agent-default-model/src/index.ts)
+- `source`: [`packages/core/agent-default-model/src/index.ts:33`](../packages/core/agent-default-model/src/index.ts)
 
 ```ts config-catalog
 /** Default model selection supplied by plugin configuration. */
@@ -72,6 +72,16 @@ export interface Config {
   model: Volatile<string>
   /** Adapter-owned reasoning effort; omission follows the provider default. */
   reasoningEffort: Volatile<string | undefined>
+  /** Catalog entry that outranks the configured selection while its provider advertises it. */
+  preferred?: PreferredModel
+}
+
+/** Deployment preference for one catalog entry, resolved by its display name. */
+export interface PreferredModel {
+  /** Registered provider route that must be available before the entry is used. */
+  provider: string
+  /** Catalog display name; leading, trailing, and repeated whitespace are ignored. */
+  name: string
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-agent-default-model -->

@@ -243,6 +243,7 @@ export interface ResolvedProfileRuntime {
   installAnchor: string
   /** Manifest declaring runtime dependencies shipped by the application and its dsh installation. */
   runtimeAnchor?: string
+  bundleDefaults?: ProfileContext['bundleDefaults']
 }
 
 /** Options for {@link runProfile}. */
@@ -332,6 +333,7 @@ export async function runProfile(options: RunProfileOptions): Promise<{ ctx: Con
       dir: composed.profile.dir, patchPath: composed.profile.patchPath,
       installAnchor: options.resolvedProfile?.installAnchor ?? INSTALL_ANCHOR,
       ...(options.resolvedProfile?.runtimeAnchor === undefined ? {} : { runtimeAnchor: options.resolvedProfile.runtimeAnchor }),
+      ...(options.resolvedProfile?.bundleDefaults === undefined ? {} : { bundleDefaults: options.resolvedProfile.bundleDefaults }),
       startedBundles: composed.profile.layers.map(layer => layer.packageName),
       cwd: process.cwd(), home: resolveDshHome(),
       overlayPaths: composed.overlayPaths, telemetryDisabledEnv: process.env.DSH_TELEMETRY_DISABLED,
