@@ -12,11 +12,9 @@ Var InstallerButton
 Var InstallerStatus
 Var InstallerFont
 Var InstallerSmallFont
-Var InstallerChoose
 Var InstallerEdit
 Var InstallerEditFrame
 Var InstallerBrowse
-Var InstallerExpanded
 Var InstallerMinimizeButton
 Var InstallerCloseButton
 !include "${__FILEDIR__}\path.nsh"
@@ -90,12 +88,8 @@ Function InstallerCreate
     ${NSD_AddStyle} $InstallerStatus ${SS_CENTER}|${SS_CENTERIMAGE}
     SendMessage $InstallerStatus ${WM_SETFONT} $InstallerSmallFont 1
     !insertmacro InstallerControlColors $InstallerStatus
+    ShowWindow $InstallerStatus 0
 
-    ${NSD_CreateButton} 0 0 0 0 "$(INSTALLER_CHOOSE_PATH)"
-    Pop $InstallerChoose
-    !insertmacro InstallerPlace $InstallerChoose 232 438 136 28
-    ${NSD_OnClick} $InstallerChoose InstallerExpandPath
-    ${NSD_OnNotify} $InstallerChoose InstallerPaintButton
     ${NSD_CreateBitmap} 0 0 0 0 ""
     Pop $InstallerEditFrame
     !insertmacro InstallerPlace $InstallerEditFrame 64 434 384 34
@@ -142,7 +136,6 @@ Function InstallerCreate
     SendMessage $InstallerButton ${WM_SETFONT} $InstallerFont 1
     ${NSD_OnClick} $InstallerButton InstallerStart
     ${NSD_OnNotify} $InstallerButton InstallerPaintButton
-    Call InstallerRender
     System::Call 'user32::SetPropW(p $HWNDPARENT, w "HarnessInstaller.Ready", p 1)'
     ShowWindow $InstallerDialog 5
     ShowWindow $HWNDPARENT 5
@@ -156,21 +149,6 @@ Function InstallerCreate
     System::Call 'gdiplus::GdiplusShutdown(p $InstallerGdiToken)'
     System::Call 'gdi32::DeleteObject(p $InstallerFont)'
     System::Call 'gdi32::DeleteObject(p $InstallerSmallFont)'
-FunctionEnd
-
-Function InstallerRender
-    ShowWindow $InstallerChoose 0
-    ShowWindow $InstallerEdit 0
-    ShowWindow $InstallerEditFrame 0
-    ShowWindow $InstallerBrowse 0
-    ShowWindow $InstallerStatus 0
-    ${If} $InstallerExpanded == 1
-        ShowWindow $InstallerEditFrame 5
-        ShowWindow $InstallerEdit 5
-        ShowWindow $InstallerBrowse 5
-    ${Else}
-        ShowWindow $InstallerChoose 5
-    ${EndIf}
 FunctionEnd
 
 Function InstallerStart
@@ -214,14 +192,6 @@ Function InstallerFinishLeave
             Abort
         ${EndIf}
     ${EndIf}
-FunctionEnd
-
-Function InstallerExpandPath
-    Pop $0
-    StrCpy $InstallerExpanded 1
-    Call InstallerRender
-    SendMessage $InstallerEdit ${EM_SETSEL} 0 0
-    System::Call 'user32::SetFocus(p $InstallerEdit)'
 FunctionEnd
 
 Function InstallerPathChanged
@@ -326,8 +296,7 @@ Function InstallerPaintButton
         System::Call 'gdi32::SetTextColor(p R4, i $InstallerTextColorref)'
     ${EndIf}
     System::Call 'gdi32::SelectObject(p R4, p $InstallerFont)'
-    ${If} $R0 == $InstallerChoose
-    ${OrIf} $R0 == $InstallerBrowse
+    ${If} $R0 == $InstallerBrowse
         System::Call 'gdi32::SelectObject(p R4, p $InstallerSmallFont)'
     ${EndIf}
     ${NSD_GetText} $R0 $R3

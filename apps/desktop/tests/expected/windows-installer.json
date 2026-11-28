@@ -7,6 +7,7 @@
     "completion-preserves-window-position",
     "welcome-ready-before-first-show",
     "welcome-presented-on-first-show",
+    "welcome-shows-prefilled-path-and-browse-on-first-open",
     "successful-install-paints-100-before-finish",
     "completion-close-exits-without-launch",
     "locked-directory-shows-error-and-copy-control-and-preserves-installation",
