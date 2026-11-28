@@ -17,6 +17,7 @@ import { installPlatformSessionPublisher } from './platform-session.ts'
 import { installOperationDiagnostics } from './operation-diagnostics.ts'
 import { DesktopAuthenticationEnd, receiveDesktopSecret } from './authentication.ts'
 import * as DesktopAuthentication from '@deepseek-ai/dsh-host-authentication-desktop'
+import { workopcBundleDefaults } from './workopc-defaults.ts'
 
 async function main(): Promise<void> {
   const runId = randomUUID() as PluginOperationRunId
@@ -49,7 +50,7 @@ async function main(): Promise<void> {
   const application = runProfile({
     environment: loadLayeredEnv('dsh'),
     profile: 'desktop',
-    resolvedProfile: { profile, installAnchor, runtimeAnchor },
+    resolvedProfile: { profile, installAnchor, runtimeAnchor, bundleDefaults: workopcBundleDefaults },
     patchFiles: [],
     args: ['--no-open', '--host', '127.0.0.1', '--port', '0'],
     ...(process.argv[5] === undefined ? {} : {

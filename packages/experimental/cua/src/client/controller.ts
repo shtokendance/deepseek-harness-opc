@@ -30,6 +30,8 @@ export interface PermissionFace {
   hooks: { cuaPermissions: SnapshotStore<PermissionView> }
   refresh: () => void
   request: (permission: CuaSystemPermission) => void
+  /** Request a missing privilege at most once per controller lifetime; later repeats are ignored. */
+  requestGuided: (permission: CuaSystemPermission) => void
   openSettings: (permission: CuaSystemPermission) => void
   revoke: (id: CuaApplicationId) => void
   retryApproval: (id: CuaApplicationId) => void
@@ -52,6 +54,8 @@ export class PermissionController {
   private closed = false
   private epoch = 0
   private sequence = 0
+  /** Privileges already requested without a click; survives panel remounts for this controller's lifetime. */
+  private readonly guided = new Set<CuaSystemPermission>()
   /**
    * @param remote Generated CUA Remote namespace; failed results follow the query and action paths.
    * @param locale Current Client language, read when a permission action starts.
@@ -68,6 +72,12 @@ export class PermissionController {
       hooks: { cuaPermissions: this.state },
       refresh: () => { this.enqueue() },
       request: (permission) => {
+        this.enqueue(() => this.remote.requestPermission(permission, this.locale()), 'requested')
+      },
+      requestGuided: (permission) => {
+        // A guided request must not repeat after refusal; the user still owns the explicit button.
+        if (this.guided.has(permission)) return
+        this.guided.add(permission)
         this.enqueue(() => this.remote.requestPermission(permission, this.locale()), 'requested')
       },
       openSettings: (permission) => {

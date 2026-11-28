@@ -3,8 +3,34 @@ import { Context } from '@deepseek-ai/cordis'
 import { expect, it, onTestFinished, vi } from 'vitest'
 import { brandString } from '@deepseek-ai/dsh-brand'
 import type { ReasoningEffortId } from '@deepseek-ai/dsh-llm'
+import LlmRuntime, { LlmAdapter } from '@deepseek-ai/dsh-llm'
 import DefaultModel from '../src/index.ts'
 import { liveConfig } from '../../../settings/settings/tests/live-config.ts'
+
+it('uses the named catalog model while its provider is available and keeps a configured choice', async () => {
+  const ctx = new Context()
+  onTestFinished(() => ctx.fiber.dispose())
+  await ctx.plugin(LlmRuntime)
+  const provider = 'opc-benlai-ai'
+  const name = 'Benlai/DeepSeek-V4.1-Flash （全局推荐）'
+  const initial = { provider: 'deepseek-official', model: 'deepseek-flash' }
+  const live = await liveConfig(ctx, DefaultModel, { ...initial, preferred: { provider, name } })
+  expect(ctx.agentDefaultModel.currentSelection()).toEqual(initial)
+  class Adapter extends LlmAdapter {
+    override async listModels() {
+      return [{ provider, id: 'model-from-platform', name }, { provider, id: 'other', name: 'Other' }]
+    }
+  }
+  const adapter = ctx.llm.registerAdapter([provider], new Adapter())
+  await vi.waitFor(() => { expect(ctx.agentDefaultModel.currentSelection()).toEqual({ provider, model: 'model-from-platform' }) })
+  adapter.replace([])
+  expect(ctx.agentDefaultModel.currentSelection()).toEqual(initial)
+  adapter.replace([provider])
+  await vi.waitFor(() => { expect(ctx.agentDefaultModel.currentSelection().model).toBe('model-from-platform') })
+  // A saved selection drops the deployment preference, so the user's pick keeps winning.
+  await live.replace({ provider: 'custom', model: 'chosen' })
+  expect(ctx.agentDefaultModel.currentSelection()).toEqual({ provider: 'custom', model: 'chosen' })
+})
 
 it('reads complete selections from volatile config and clears omitted reasoning effort', async () => {
   const ctx = new Context()

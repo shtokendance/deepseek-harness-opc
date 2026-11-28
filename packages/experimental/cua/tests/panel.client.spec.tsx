@@ -35,13 +35,38 @@ function fixture() {
   const props = { useCuaPermissions: bindSnapshotSelector(state), t: makeTranslate(en),
     setPersistentPtc: vi.fn(async () => true),
     useCuaDefaultPreset: bindSnapshotSelector(preset), setPtcDefault: vi.fn(async () => true),
-    refresh, request: vi.fn(), openSettings: vi.fn(), revoke: vi.fn(),
+    refresh, request: vi.fn(), requestGuided: vi.fn(), openSettings: vi.fn(), revoke: vi.fn(),
     retryApproval: vi.fn(), dismissToast: vi.fn(),
   } satisfies PermissionPanelProps
   return { state, preset, props,
     publish(patch: Partial<PermissionView>) { act(() => { state.set({ ...state.getSnapshot(), ...patch }) }) },
   }
 }
+
+it('asks for the lowest missing privilege without replacing the explicit button', () => {
+  // Repeating the ask is the panel's contract: the controller owns one-request-per-privilege.
+  const f = fixture()
+  const props = { ...f.props, guideSystemPermissions: true }
+  const neither = { ...value.system, screenRecording: false }
+  render(<PermissionPanel {...props} />)
+  f.publish(observe({ ...value, system: neither }))
+  expect(f.props.requestGuided).toHaveBeenLastCalledWith('accessibility')
+  f.publish(observe({ ...value, system: { ...neither, accessibility: true } }))
+  expect(f.props.requestGuided).toHaveBeenLastCalledWith('screenRecording')
+  const settled = f.props.requestGuided.mock.calls.length
+  f.publish(observe({ ...value, system: { ...neither, accessibility: true, screenRecording: true } }))
+  expect(f.props.requestGuided).toHaveBeenCalledTimes(settled)
+  // Guidance never substitutes for the explicit button.
+  expect(f.props.request).not.toHaveBeenCalled()
+})
+
+it('stays idle without launcher guidance', () => {
+  const f = fixture()
+  render(<PermissionPanel {...f.props} />)
+  f.publish(observe({ ...value, system: { ...value.system, accessibility: false, screenRecording: false } }))
+  expect(f.props.requestGuided).not.toHaveBeenCalled()
+  expect(f.props.request).not.toHaveBeenCalled()
+})
 
 it('requests only a missing privilege and leaves OS attribution to the system prompt', () => {
   const f = fixture()

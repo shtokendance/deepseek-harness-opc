@@ -57,6 +57,7 @@ export async function mountCuaPermissions(ctx: Context, contribution: TypertRemo
     const preset = ctx.configForms.get<{ default: string; selectedDefault?: string }>('agent-preset-registry')
     const settings = {
       ...face,
+      guideSystemPermissions: Boolean((globalThis as { __WORKOPC_OWNED_LAUNCHER__?: boolean }).__WORKOPC_OWNED_LAUNCHER__),
       hooks: { ...face.hooks, cuaDefaultPreset: preset },
       setPtcDefault: () => preset.set('selectedDefault', 'ptc'),
       setPersistentPtc: async () => {
