@@ -2,7 +2,7 @@
 import { Context } from '@deepseek-ai/cordis'
 import { expect, it, onTestFinished, vi } from 'vitest'
 import { brandString } from '@deepseek-ai/dsh-brand'
-import type { ReasoningEffortId } from '@deepseek-ai/dsh-llm'
+import type { GenerateOptions, ReasoningEffortId, StreamChunk } from '@deepseek-ai/dsh-llm'
 import LlmRuntime, { LlmAdapter } from '@deepseek-ai/dsh-llm'
 import DefaultModel from '../src/index.ts'
 import { liveConfig } from '../../../settings/settings/tests/live-config.ts'
@@ -19,6 +19,10 @@ it('uses the named catalog model while its provider is available and keeps a con
   class Adapter extends LlmAdapter {
     override async listModels() {
       return [{ provider, id: 'model-from-platform', name }, { provider, id: 'other', name: 'Other' }]
+    }
+
+    override async *stream(_options: GenerateOptions): AsyncIterable<StreamChunk> {
+      // Catalog resolution never enters provider streaming.
     }
   }
   const adapter = ctx.llm.registerAdapter([provider], new Adapter())
