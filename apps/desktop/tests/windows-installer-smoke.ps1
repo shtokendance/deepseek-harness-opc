@@ -149,13 +149,17 @@ function Start-ComputerUseFixture([string]$Root) {
     return $worker
 }
 try {
-    $process = Start-Setup light
+    $process = Start-Setup light ''
     $results.Add('welcome-presented-on-first-show')
     $window = [InstallerCapture]::Find($process.Id)
+    $edit = [InstallerCapture]::FindClass($window, 'Edit')
+    $defaultPath = Join-Path $env:LOCALAPPDATA "Programs\$ProductName"
+    if (-not [InstallerCapture]::IsWindowVisible($edit) -or [InstallerCapture]::ControlText($edit) -ne $defaultPath) {
+        throw 'Welcome did not show the prefilled default installation path on first open'
+    }
+    [void](Wait-Control $process $copy.INSTALLER_BROWSE)
+    $results.Add('welcome-shows-prefilled-path-and-browse-on-first-open')
     [void][InstallerCapture]::Save($window, (Join-Path $OutputDirectory 'light-welcome.png'))
-    Click-Control $process $copy.INSTALLER_CHOOSE_PATH
-    $edit = Wait-Control $process $installPath
-    [void][InstallerCapture]::Save($window, (Join-Path $OutputDirectory 'light-path.png'))
     Click-Control $process $copy.INSTALLER_BROWSE
     Dismiss $process $copy.INSTALLER_CHOOSE_PATH
     [void][InstallerCapture]::SendMessage($window, 0x28, $edit, [IntPtr]1)
@@ -201,7 +205,6 @@ try {
     $results.Add('locked-directory-shows-error-and-copy-control-and-preserves-installation')
 
     $process = Start-Setup dark ''
-    Click-Control $process $copy.INSTALLER_CHOOSE_PATH
     $edit = Wait-Control $process $installPath
     [void][InstallerCapture]::SendMessage($edit, 0xC, [IntPtr]::Zero, ($installPath + '\\'))
     [void][InstallerCapture]::Save([InstallerCapture]::Find($process.Id), (Join-Path $OutputDirectory 'dark-welcome.png'))
